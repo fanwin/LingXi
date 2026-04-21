@@ -299,28 +299,32 @@ pre {
   }
 }
 
-/* 语法高亮代码块 - 只移除下划线，保留原有背景样式 */
-pre code,
-pre code span,
-[class*="prismjs"] code,
-[class*="prismjs"] code span,
-[class*="syntax-highlighter"] code,
-[class*="syntax-highlighter"] code span {
+/* ============================================
+   语法高亮代码块样式重置
+   确保 react-syntax-highlighter 不受全局 code 样式影响
+   ============================================ */
+
+/* 重置 syntax highlighter 内部 code 元素的全局样式 */
+[class*="react-syntax-highlighter"] code,
+[class*="syntax-highlighter"] code {
+  padding: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+/* 确保 syntax highlighter 内部所有元素无下划线、无边框 */
+[class*="react-syntax-highlighter"] *,
+[class*="syntax-highlighter"] *,
+[class*="prismjs"] * {
   text-decoration: none !important;
   border-bottom: none !important;
 }
 
-/* 针对 react-syntax-highlighter 的特定样式 */
-[class*="react-syntax-highlighter"] {
-  text-decoration: none !important;
-}
-
-[class*="react-syntax-highlighter"] * {
-  text-decoration: none !important;
-  border-bottom: none !important;
-}
-
-/* 代码块中的注释、关键字等元素 - 只移除下划线 */
+/* Prism token 样式重置 - 仅移除可能的装饰线，保留颜色高亮 */
 .token.comment,
 .token.prolog,
 .token.doctype,
@@ -354,6 +358,8 @@ pre code span,
 .token.italic {
   text-decoration: none !important;
   border-bottom: none !important;
+  background: transparent !important;
+  background-image: none !important;
 }
 
 ul,

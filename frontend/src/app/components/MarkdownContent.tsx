@@ -81,20 +81,14 @@ function CodeBlock({
           language={language}
           PreTag="div"
           className="max-w-full rounded-md text-sm"
-          wrapLines={true}
           wrapLongLines={true}
-          lineProps={{
-            style: {
-              wordBreak: "break-all",
-              whiteSpace: "pre-wrap",
-              overflowWrap: "break-word",
-            },
-          }}
           customStyle={{
             margin: 0,
             maxWidth: "100%",
             overflowX: "auto",
             fontSize: "0.875rem",
+            padding: "1rem",
+            borderRadius: "0.5rem",
           }}
         >
           {code}

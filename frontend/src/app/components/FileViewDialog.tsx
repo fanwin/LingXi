@@ -230,14 +230,9 @@ export const FileViewDialog = React.memo<{
                         margin: 0,
                         borderRadius: "0.5rem",
                         fontSize: "0.875rem",
+                        padding: "1rem",
                       }}
                       showLineNumbers
-                      wrapLines={true}
-                      lineProps={{
-                        style: {
-                          whiteSpace: "pre-wrap",
-                        },
-                      }}
                     >
                       {fileContent}
                     </SyntaxHighlighter>
