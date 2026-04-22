@@ -2,7 +2,7 @@
   "dependencies": ["."],
   "graphs": {
      "chat_agent": {
-      "path": "./src/app/agents/testcase/agent.py:agent"
+      "path": "./src/agents/testcase/agent.py:agent"
     }
   },
   "env": ".env",

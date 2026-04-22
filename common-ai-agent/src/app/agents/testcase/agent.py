@@ -23,7 +23,6 @@ from app.agents.testcase.tools import (
     get_base_tools, get_all_tools,
 )
 from app.middleware.rag_context import RAGMiddleware
-# noqa  MC80OmFIVnBZMlhvaklQb3RvVTZjbEpIWlE9PTo1ZmUwMTI2MA==
 
 load_dotenv()
 
@@ -256,7 +255,6 @@ LOGIN/REG/PROFILE/AUTH/ORDER/PAY/CART/SEARCH/UPLOAD/EXPORT/MSG/SYS/REPORT/PROD
 请始终以企业级测试工程师的专业标准执行每一个任务。现在，请告诉我你的测试需求，或直接上传需求文档。
 """
 
-# noqa  MS80OmFIVnBZMlhvaklQb3RvVTZjbEpIWlE9PTo1ZmUwMTI2MA==
 
 def _has_image_in_messages(request: ModelRequest) -> bool:
     """
@@ -287,7 +285,6 @@ def _has_image_in_messages(request: ModelRequest) -> bool:
                     return True
     return False
 
-# fmt: off  Mi80OmFIVnBZMlhvaklQb3RvVTZjbEpIWlE9PTo1ZmUwMTI2MA==
 
 @wrap_model_call
 async def dynamic_model_selection(request: ModelRequest, handler) -> ModelResponse:
@@ -315,7 +312,6 @@ async def dynamic_model_selection(request: ModelRequest, handler) -> ModelRespon
 
 skills_root = Path(r"C:\Users\65132\Desktop\workspace\testing\ai-test-agent-system\src\app\workspace").resolve()
 skills_backend = FilesystemBackend(root_dir=skills_root, virtual_mode=True)
-# type: ignore  My80OmFIVnBZMlhvaklQb3RvVTZjbEpIWlE9PTo1ZmUwMTI2MA==
 
 # 创建技能中间件
 skills_middleware = SkillsMiddleware(

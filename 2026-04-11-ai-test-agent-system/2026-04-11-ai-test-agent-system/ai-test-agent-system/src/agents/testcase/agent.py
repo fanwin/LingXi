@@ -12,18 +12,19 @@ from deepagents.middleware import SkillsMiddleware
 from dotenv import load_dotenv
 from langchain.agents.middleware import ModelRequest, ModelResponse, wrap_model_call
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import SystemMessage
 
-from app.core.llms import image_llm_model, deepseek_model
-from app.middleware.pdf_context import PDFContextMiddleware
-from app.agents.testcase.tools import (
+from core.llms import image_llm_model, deepseek_model
+from middleware.pdf_context import PDFContextMiddleware
+from agents.testcase.tools import (
+    export_testcases_to_excel,
     rag_mcp_tools,
+    get_rag_tool_names,
     get_tool_name,
     format_rag_tools_description,
     RAG_SYSTEM_PROMPT_APPENDIX,
-    get_base_tools, get_all_tools,
+    get_all_tools,
 )
-from app.middleware.rag_context import RAGMiddleware
-# noqa  MC80OmFIVnBZMlhvaklQb3RvVTZjbEpIWlE9PTo1ZmUwMTI2MA==
 
 load_dotenv()
 
@@ -31,7 +32,7 @@ load_dotenv()
 @dataclass
 class Context:
     """Custom runtime context schema."""
-    enable_rag: bool = True
+    enable_rag: bool = False
 
 
 # ============================================================================
@@ -50,14 +51,6 @@ SYSTEM_PROMPT = """
 
 你拥有完整的Skills知识体系，每项任务严格遵循对应的Skill规范执行。
 
-## 核心工作铁律
-
-**先 RAG，后分析；无检索，不设计**：
-1. 收到任何测试需求后，**必须首先激活 `rag-query` Skill**，查询历史测试用例、业务规则、领域知识
-2. **所有需求分析必须基于 RAG 检索到的上下文**展开，禁止在零上下文的情况下直接推导
-3. 若知识库检索结果为空，需在分析报告中明确标注「[RAG检索] 未检索到相关历史知识」，再继续基于需求原文分析
-4. RAG 检索完成后，才能进入功能模块提取、测试矩阵构建等后续步骤
-
 ---
 
 # 核心能力矩阵
@@ -75,30 +68,54 @@ SYSTEM_PROMPT = """
 
 # 标准工作流程（强制执行）
 
-## Phase 1：需求深度解析与 RAG 检索【必须首先执行】
+## Phase 1：需求深度解析【必须首先执行】
 
-收到需求输入（任何形式：文档/图片/描述）后，**立即且强制**执行以下分析。
-**铁律：本 Phase 必须以 `rag-query` Skill 的 RAG 检索作为第一步，未完成检索不得进入后续分析。**
+收到需求输入（任何形式：文档/图片/描述）后，**立即且强制**执行以下分析：
 
 ```
-Step 1（强制）：RAG 知识检索
-  ├─ 激活 `rag-query` Skill
-  ├─ 提取需求中的核心实体词（功能模块、业务对象、操作动作）
-  ├─ 构建 1-3 个精准检索查询语句
-  ├─ 调用所有可用 RAG 工具并行检索
-  ├─ 整理检索结果中的业务规则、历史用例、易遗漏场景、领域要点
-  └─ 在分析报告中标注 [RAG检索] 标签
-
-Step 2：识别文档类型与结构
-Step 3：提取功能模块列表（按业务域分组）
-Step 4：梳理核心业务流程（主流程 + 分支 + 异常流程）
-Step 5：建立功能测试矩阵（模块 × 测试维度）
-Step 6：标注风险区域（安全/数据/兼容/性能）
-Step 7：声明测试范围（In Scope / Out of Scope）
-Step 8：预估用例数量与优先级分布
+1. 【RAG知识检索】调用可用的RAG工具查询相关知识库
+   - 检索范围：历史测试用例、业务规范、领域知识、术语定义
+   - 检索策略：提取需求关键词进行多维度查询
+   
+2. 识别文档类型与结构
+3. 提取功能模块列表（按业务域分组）
+4. 梳理核心业务流程（主流程 + 分支 + 异常流程）
+5. 建立功能测试矩阵（模块 × 测试维度）
+6. 标注风险区域（安全/数据/兼容/性能）
+7. 声明测试范围（In Scope / Out of Scope）
+8. 预估用例数量与优先级分布
 ```
 
-> ⚡ **规则**：未完成 Phase 1 分析（含 RAG 检索）前，禁止直接生成测试用例。分析结果需向用户展示并确认。
+### Phase 1.1：RAG知识检索【强制步骤】
+
+**触发条件**：收到任何测试需求后，**必须**先执行RAG检索
+
+**检索策略**：
+| 需求特征 | 检索关键词示例 | 预期检索内容 |
+|---------|--------------|-------------|
+| 功能模块名称 | 登录、订单、支付 | 该模块的历史用例、业务规则 |
+| 业务术语 | 优惠券、库存、退款 | 业务定义、状态流转规则 |
+| 技术关键词 | API、权限、并发 | 技术规范、测试要点 |
+| 行业场景 | 电商、金融、物流 | 行业标准用例、合规要求 |
+
+**RAG检索执行流程**：
+```
+Step A: 提取需求中的核心实体词（功能模块、业务对象、操作动作）
+Step B: 组合关键词构建检索查询
+Step C: 调用所有可用RAG工具执行并行检索
+Step D: 分析检索结果，提取以下信息：
+        - 业务规则约束
+        - 历史测试用例参考
+        - 易遗漏的测试场景
+        - 领域特定测试要点
+Step E: 将检索结果融入需求分析报告
+```
+
+**引用规范**：
+- 在需求分析报告中标注基于RAG检索的发现：「[RAG检索] 发现历史用例中登录模块需考虑...」
+- 如检索结果为空，标注：「[RAG检索] 未检索到相关历史知识」
+
+> ⚡ **规则**：未完成Phase 1分析（含RAG检索）前，禁止直接生成测试用例。分析结果需向用户展示并确认。
 
 ## Phase 2：测试策略制定
 
@@ -189,12 +206,12 @@ TC-[项目代码]-[模块缩写]-[3位序号]
 
 ```
 Step 1：确认收到（1句话）
-Step 2：执行 RAG 知识检索（严格遵循 `rag-query` Skill）
+Step 2：执行RAG知识检索（Phase 1.1）
         - 提取需求关键词
-        - 调用所有可用 RAG 工具并行检索
-        - 汇总检索结果，标注 [RAG检索] 标签
-Step 3：输出需求解析报告（含 RAG 检索结果 + 功能矩阵 + 风险清单 + 用例预估）
-Step 4：询问用户确认："以上分析是否准确？RAG 检索到的历史信息是否适用当前场景？"
+        - 调用所有可用RAG工具并行检索
+        - 汇总检索结果，标注[RAG检索]标签
+Step 3：输出需求解析报告（含RAG检索结果 + 功能矩阵 + 风险清单 + 用例预估）
+Step 4：询问用户确认："以上分析是否准确？RAG检索到的历史信息是否适用当前场景？"
 Step 5：用户确认后，按模块逐一生成测试用例
 Step 6：每个模块完成后输出质量自检结果
 Step 7：所有模块完成后输出完整汇总表 + 质量评审报告
@@ -256,7 +273,6 @@ LOGIN/REG/PROFILE/AUTH/ORDER/PAY/CART/SEARCH/UPLOAD/EXPORT/MSG/SYS/REPORT/PROD
 请始终以企业级测试工程师的专业标准执行每一个任务。现在，请告诉我你的测试需求，或直接上传需求文档。
 """
 
-# noqa  MS80OmFIVnBZMlhvaklQb3RvVTZjbEpIWlE9PTo1ZmUwMTI2MA==
 
 def _has_image_in_messages(request: ModelRequest) -> bool:
     """
@@ -287,7 +303,6 @@ def _has_image_in_messages(request: ModelRequest) -> bool:
                     return True
     return False
 
-# fmt: off  Mi80OmFIVnBZMlhvaklQb3RvVTZjbEpIWlE9PTo1ZmUwMTI2MA==
 
 @wrap_model_call
 async def dynamic_model_selection(request: ModelRequest, handler) -> ModelResponse:
@@ -308,31 +323,85 @@ async def dynamic_model_selection(request: ModelRequest, handler) -> ModelRespon
     return await handler(request.override(model=model))
 
 
+@wrap_model_call
+async def dynamic_tools_selection(request: ModelRequest, handler) -> ModelResponse:
+    """
+    根据 runtime context 中的 enable_rag 标志，动态过滤 RAG 工具并调整系统提示词。
+    
+    - enable_rag=True: 保留所有工具（包括RAG工具），并在系统提示词中添加RAG使用说明
+    - enable_rag=False: 过滤掉RAG工具，仅保留基础工具
+    """
+    # 获取当前请求中的工具列表
+    current_tools = list(request.tools) if request.tools else []
+    
+    # 获取 RAG 工具名称集合
+    rag_tool_names = get_rag_tool_names()
+    
+    # 根据 enable_rag 标志决定是否过滤 RAG 工具
+    # enable_rag = request.runtime.context.enable_rag
+
+    context = request.runtime.context if request.runtime else None
+    enable_rag = context and getattr(context, 'enable_rag', False)
+    
+    if enable_rag:
+        # enable_rag=True：保留所有工具，并扩展系统提示词
+        final_tools = current_tools
+        
+        # 添加RAG使用说明到系统提示词
+        rag_appendix = RAG_SYSTEM_PROMPT_APPENDIX.format(
+            rag_tools_description=format_rag_tools_description()
+        )
+        
+        # 获取当前系统消息内容
+        current_system_message = request.system_message
+        if current_system_message:
+            # 追加RAG说明到现有系统消息
+            # 处理 content 可能是字符串或列表的情况
+            current_content = current_system_message.content
+            if isinstance(current_content, list):
+                # 如果是列表，将其转换为字符串
+                current_content = "\n".join(str(item) for item in current_content)
+            new_content = current_content + rag_appendix
+            new_system_message = SystemMessage(content=new_content)
+        else:
+            # 如果没有系统消息，创建一个新的（这种情况很少见）
+            new_system_message = SystemMessage(content=rag_appendix)
+        
+        # 同时更新工具和系统消息
+        return await handler(request.override(tools=final_tools, system_message=new_system_message))
+    else:
+        # enable_rag=False：过滤掉RAG工具
+        final_tools = [tool for tool in current_tools if get_tool_name(tool) not in rag_tool_names]
+        return await handler(request.override(tools=final_tools))
+
 
 # ============================================================================
 # Agent 配置
 # ============================================================================
 
-skills_root = Path(r"C:\Users\65132\Desktop\workspace\testing\ai-test-agent-system\src\app\workspace").resolve()
+skills_root = Path(r"C:\Users\65132\Desktop\workspace\testing\ai-test-agent-system\src\workspace\testcase").resolve()
 skills_backend = FilesystemBackend(root_dir=skills_root, virtual_mode=True)
-# type: ignore  My80OmFIVnBZMlhvaklQb3RvVTZjbEpIWlE9PTo1ZmUwMTI2MA==
 
 # 创建技能中间件
 skills_middleware = SkillsMiddleware(
     backend=skills_backend,
-    sources=["/skills/testcase/skills/", "/skills/rag-query/"]
+    sources=["/skills/"]
 )
+
+# 构建完整的工具列表：基础工具 + RAG工具
+# 所有工具都在此处注册，中间件只负责根据 enable_rag 动态过滤
+_ALL_TOOLS = get_all_tools()
 
 agent = create_agent(
     model=llm,
-    tools=get_all_tools(),
+    tools=_ALL_TOOLS,   # 导出excel工具+rag mcp工具
     backend=skills_backend,
     middleware=[
-        skills_middleware,
-        dynamic_model_selection,
-        RAGMiddleware(),
-        PDFContextMiddleware()
+        skills_middleware,  # 测试用例生成技能
+        dynamic_model_selection,   # 动态选择模型
+        dynamic_tools_selection,    # 动态选择工具
+        PDFContextMiddleware(original_system_prompt=SYSTEM_PROMPT)  # 解析pdf
     ],
     system_prompt=SYSTEM_PROMPT,
-    context_schema=Context
+    context_schema=Context  # 上下文信息
 )
