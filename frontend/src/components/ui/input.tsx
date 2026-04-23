@@ -1,4 +1,5 @@
 import * as React from "react";
+// eslint-disable  MC8yOmFIVnBZMlhvaklQb3RvVTZSbEUzTWc9PTpiNDU5ZGY1ZA==
 
 import { cn } from "@/lib/utils";
 
@@ -8,23 +9,15 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       type={type}
       data-slot="input"
       className={cn(
-        "flex h-10 w-full min-w-0 rounded-xl border bg-transparent px-4 py-2 text-sm shadow-sm outline-none transition-all duration-200",
-        "selection:bg-primary/15 selection:text-primary",
-        "file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
-        "placeholder:text-muted-foreground/70 placeholder:font-normal",
-        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40",
-        "hover:border-primary/30 hover:shadow",
-        "focus-visible:border-primary/50 focus-visible:ring-[3px] focus-visible:ring-primary/15 focus-visible:shadow-md",
-        "aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
+        "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] selection:bg-blue-200 selection:text-gray-900 file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:selection:bg-blue-600 dark:selection:text-white md:text-sm",
+        "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
         className
       )}
-      style={{
-        borderColor: 'var(--color-border)',
-        background: 'var(--color-surface-hover)',
-      }}
       {...props}
     />
   );
 }
 
 export { Input };
+// TODO  MS8yOmFIVnBZMlhvaklQb3RvVTZSbEUzTWc9PTpiNDU5ZGY1ZA==

@@ -7,8 +7,34 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const MODEL_DATA_MARKER_START = "\n<!-- __HATCH_AGENT_INTERNAL_START__ -->\n";
+const MODEL_DATA_MARKER_END = "\n<!-- __HATCH_AGENT_INTERNAL_END__ -->\n";
+
+/**
+ * 剥离后端注入的模型专用数据标记。
+ *
+ * 后端 message_transformer 在 PDF/图片解析后，会将分析结果用特殊 HTML 注释
+ * 包裹后注入消息 content 中（供模型读取上下文），前端渲染时应将其隐藏。
+ *
+ * 示例：
+ *   输入:  "用户文字\n<!-- __HATCH_AGENT_INTERNAL_START__ -->\nPDF分析内容...\n<!-- __HATCH_AGENT_INTERNAL_END__ -->"
+ *   输出:  "用户文字"
+ */
+export function stripModelInternalData(content: string): string {
+  if (typeof content !== "string") return content;
+  const startIdx = content.indexOf(MODEL_DATA_MARKER_START);
+  if (startIdx === -1) return content;
+  const endIdx = content.indexOf(MODEL_DATA_MARKER_END, startIdx);
+  if (endIdx === -1) return content;
+  // 移除从 start（含）到 end（含尾部换行）之间的全部内容，保留前后部分
+  return (
+    content.slice(0, startIdx).trimEnd() +
+    content.slice(endIdx + MODEL_DATA_MARKER_END.length)
+  );
+}
+
 export function extractStringFromMessageContent(message: Message): string {
-  return typeof message.content === "string"
+  const raw = typeof message.content === "string"
     ? message.content
     : Array.isArray(message.content)
     ? message.content
@@ -29,6 +55,7 @@ export function extractStringFromMessageContent(message: Message): string {
         )
         .join("")
     : "";
+  return stripModelInternalData(raw);
 }
 // @ts-expect-error  MS80OmFIVnBZMlhvaklQb3RvVTZlVEU1VWc9PTpiMzU5N2EyMQ==
 

@@ -6,6 +6,7 @@ import { SubAgentIndicator } from "@/app/components/SubAgentIndicator";
 import { ToolCallBox } from "@/app/components/ToolCallBox";
 import { MarkdownContent } from "@/app/components/MarkdownContent";
 import { MultimodalPreview } from "@/app/components/MultimodalPreview";
+import { TestCaseExportBar } from "@/app/components/TestCaseExportBar";
 import type {
   SubAgent,
   ToolCall,
@@ -40,7 +41,7 @@ function isImageUrlBlock(block: unknown): block is ImageUrlBlock {
   );
 }
 
-/** Returns true for PDF blocks in additional_kwargs.attachments */
+/** Returns true for document blocks (PDF or Word) in additional_kwargs.attachments */
 function isMultimodalBlock(
   block: unknown
 ): block is ContentBlock.Multimodal.Data {
@@ -50,7 +51,11 @@ function isMultimodalBlock(
   return (
     b.type === "file" &&
     typeof b.mimeType === "string" &&
-    b.mimeType === "application/pdf"
+    (
+      b.mimeType === "application/pdf" ||
+      b.mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      b.mimeType === "application/msword"
+    )
   );
 }
 // FIXME  MS80OmFIVnBZMlhvaklQb3RvVTZlbkl4Ymc9PTo1ODExNGZhYw==
@@ -162,20 +167,25 @@ export const ChatMessage = React.memo<ChatMessageProps>(
 
     const hasAttachments = imageUrlBlocks.length > 0 || pdfBlocks.length > 0;
 
-    const handleCopy = async () => {
-      try {
-        await navigator.clipboard.writeText(messageContent);
-      } catch (err) {
-        console.error('Failed to copy:', err);
-      }
-    };
+    // 检测是否存在已完成的 Excel 导出工具调用
+    const exportToolCall = useMemo(
+      () =>
+        toolCalls.find(
+          (tc: ToolCall) =>
+            tc.name === "export_testcases_to_excel" &&
+            tc.status === "completed" &&
+            typeof tc.result === "string" &&
+            tc.result.trim() !== ""
+        ),
+      [toolCalls]
+    );
 
     return (
       <div
         className={cn("flex w-full max-w-full overflow-x-hidden", isUser && "flex-row-reverse")}
         style={{ contentVisibility: "auto", containIntrinsicSize: "200px" }}
       >
-        <div className={cn("min-w-0 max-w-full group", isUser ? "max-w-[70%]" : "w-full")}>
+        <div className={cn("min-w-0 max-w-full", isUser ? "max-w-[70%]" : "w-full")}>
           {isUser ? (
             /* ── Human message: images + PDFs + text ── */
             <div className="mt-4 flex flex-col items-end gap-2">
@@ -198,68 +208,30 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                 </div>
               )}
               {hasContent && (
-                <div className="relative">
-                  <div
-                    className="overflow-hidden break-words rounded-xl rounded-br-none border border-border px-3 py-2 text-sm font-normal leading-[150%] text-foreground"
-                    style={{ backgroundColor: "var(--color-user-message-bg)" }}
-                  >
-                    <p className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {messageContent}
-                    </p>
-                  </div>
-                  {/* Action buttons - Copy & Edit */}
-                  <div className="absolute -left-16 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {/* Copy button */}
-                    <button
-                      onClick={handleCopy}
-                      className="p-1 rounded hover:bg-accent"
-                      title="复制内容"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                      </svg>
-                    </button>
-                    {/* Edit button */}
-                    <button
-                      onClick={() => console.log('Edit clicked:', messageContent)}
-                      className="p-1 rounded hover:bg-accent"
-                      title="编辑消息"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
-                    </button>
-                  </div>
+                <div
+                  className="overflow-hidden break-words rounded-xl rounded-br-none border border-border px-3 py-2 text-sm font-normal leading-[150%] text-foreground"
+                  style={{ backgroundColor: "var(--color-user-message-bg)" }}
+                >
+                  <p className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed">
+                    {messageContent}
+                  </p>
                 </div>
               )}
             </div>
           ) : (
             /* ── AI message ── */
             hasContent && (
-              <div className="relative mt-4 flex items-start gap-2">
-                <div className={cn("relative flex-1", isStreamingMessage && "opacity-80")}>
-                  <div className="overflow-hidden break-words text-sm font-normal leading-[150%] text-primary">
-                    <MarkdownContent
-                      content={messageContent}
-                      streaming={isStreamingMessage}
-                    />
-                  </div>
+              <div className={cn("relative flex items-end gap-0")}>
+                <div className="mt-4 overflow-hidden break-words text-sm font-normal leading-[150%] text-primary">
+                  <MarkdownContent
+                    content={messageContent}
+                    streaming={isStreamingMessage}
+                  />
+                  {/* 测试用例导出下载栏：工具完成后才展示 */}
+                  {exportToolCall && (
+                    <TestCaseExportBar rawResult={exportToolCall.result} />
+                  )}
                 </div>
-                {/* Copy button for AI message */}
-                {!isStreamingMessage && (
-                  <button
-                    onClick={handleCopy}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-accent mt-1"
-                    title="复制内容"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                    </svg>
-                  </button>
-                )}
               </div>
             )
           )}
@@ -290,11 +262,11 @@ export const ChatMessage = React.memo<ChatMessageProps>(
             </div>
           )}
           {!isUser && subAgents.length > 0 && (
-            <div className="mt-4 flex w-fit max-w-full flex-col gap-3">
+            <div className="flex w-fit max-w-full flex-col gap-4">
               {subAgents.map((subAgent) => (
-                <div key={subAgent.id} className="flex w-full flex-col gap-2.5 animate-slideInUp">
-                  <div className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1">
+                <div key={subAgent.id} className="flex w-full flex-col gap-2">
+                  <div className="flex items-end gap-2">
+                    <div className="w-[calc(100%-100px)]">
                       <SubAgentIndicator
                         subAgent={subAgent}
                         onClick={() => toggleSubAgent(subAgent.id)}
@@ -303,42 +275,20 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                     </div>
                   </div>
                   {isSubAgentExpanded(subAgent.id) && (
-                    <div
-                      className="w-full max-w-full overflow-hidden rounded-xl transition-all duration-300"
-                      style={{
-                        background: 'linear-gradient(135deg, var(--color-surface) 0%, var(--color-surface-hover) 100%)',
-                        border: '1px solid var(--color-border-light)',
-                        boxShadow: 'var(--shadow-sm)'
-                      }}
-                    >
-                      <div className="p-5">
-                        <h4
-                          className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
-                          style={{ color: 'var(--color-primary)' }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 19V6M5 12l7-7 7 7"/>
-                          </svg>
-                          输入参数
+                    <div className="w-full max-w-full">
+                      <div className="bg-surface border-border-light rounded-md border p-4">
+                        <h4 className="text-primary/70 mb-2 text-xs font-semibold uppercase tracking-wider">
+                          输入
                         </h4>
-                        <div className="mb-5 pl-1">
+                        <div className="mb-4">
                           <MarkdownContent content={extractSubAgentContent(subAgent.input)} />
                         </div>
                         {subAgent.output && (
                           <>
-                            <div style={{ height: '1px', background: 'linear-gradient(90deg, transparent, var(--color-border), transparent)' }} className="my-4" />
-                            <h4
-                              className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
-                              style={{ color: 'var(--color-success)' }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M20 6L9 17l-5-5"/>
-                              </svg>
-                              执行结果
+                            <h4 className="text-primary/70 mb-2 text-xs font-semibold uppercase tracking-wider">
+                              输出
                             </h4>
-                            <div className="pl-1">
-                              <MarkdownContent content={extractSubAgentContent(subAgent.output)} />
-                            </div>
+                            <MarkdownContent content={extractSubAgentContent(subAgent.output)} />
                           </>
                         )}
                       </div>

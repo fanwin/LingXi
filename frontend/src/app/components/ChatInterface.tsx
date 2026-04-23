@@ -311,27 +311,17 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* 消息列表区域 */}
       <div
-        className="scrollbar-pretty flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
         ref={scrollRef}
       >
         <div
-          className="mx-auto w-full max-w-[1024px] px-6 pb-8 pt-5"
+          className="mx-auto w-full max-w-[1024px] px-6 pb-6 pt-4"
           ref={contentRef}
         >
           {isThreadLoading ? (
-            /* 加载状态 */
-            <div className="flex h-[60vh] flex-col items-center justify-center gap-4 animate-fadeIn">
-              <div className="relative">
-                <div className="h-14 w-14 rounded-2xl" style={{ background: 'var(--color-primary-gradient)', opacity: 0.15 }}></div>
-                <div className="absolute inset-0 m-auto h-10 w-10 animate-spin rounded-xl" style={{
-                  background: 'conic-gradient(from 0deg, transparent 0%, var(--color-primary) 100%)',
-                  WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px))',
-                  mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px))'
-                }} />
-              </div>
-              <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>加载对话中...</p>
+            <div className="flex items-center justify-center p-8">
+              <p className="text-muted-foreground">加载中...</p>
             </div>
           ) : (
             <>
@@ -339,26 +329,25 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
                 const messageUi = messageUiMap.get(data.message.id ?? "");
                 const isLastMessage = index === processedMessages.length - 1;
                 return (
-                  <div key={data.message.id} className="animate-fadeIn mb-2" style={{ animationFillMode: 'both' }}>
-                    <ChatMessage
-                      message={data.message}
-                      toolCalls={data.toolCalls}
-                      isLoading={isLoading}
-                      isStreaming={isLastMessage && isLoading}
-                      actionRequestsMap={
-                        isLastMessage ? actionRequestsMap : undefined
-                      }
-                      reviewConfigsMap={
-                        isLastMessage ? reviewConfigsMap : undefined
-                      }
-                      ui={messageUi}
-                      stream={isLastMessage ? stream : undefined}
-                      onResumeInterrupt={
-                        isLastMessage ? resumeInterrupt : undefined
-                      }
-                      graphId={isLastMessage ? assistant?.graph_id : undefined}
-                    />
-                  </div>
+                  <ChatMessage
+                    key={data.message.id}
+                    message={data.message}
+                    toolCalls={data.toolCalls}
+                    isLoading={isLoading}
+                    isStreaming={isLastMessage && isLoading}
+                    actionRequestsMap={
+                      isLastMessage ? actionRequestsMap : undefined
+                    }
+                    reviewConfigsMap={
+                      isLastMessage ? reviewConfigsMap : undefined
+                    }
+                    ui={messageUi}
+                    stream={isLastMessage ? stream : undefined}
+                    onResumeInterrupt={
+                      isLastMessage ? resumeInterrupt : undefined
+                    }
+                    graphId={isLastMessage ? assistant?.graph_id : undefined}
+                  />
                 );
               })}
             </>
@@ -366,33 +355,17 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
         </div>
       </div>
 
-      {/* 现代化输入区域 */}
-      <div
-        className="flex-shrink-0 px-4 pb-5 pt-2"
-        style={{
-          background: 'linear-gradient(180deg, transparent 0%, var(--color-background) 30%)'
-        }}
-      >
+      <div className="flex-shrink-0 bg-background">
         <div
           ref={dropRef}
           className={cn(
-            "mx-auto w-full max-w-[1024px] overflow-hidden rounded-xl transition-all duration-200",
-            dragOver ? "border-dashed border-2 shadow-md" : "",
+            "mx-4 mb-6 flex flex-shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-background",
+            "mx-auto w-[calc(100%-32px)] max-w-[1024px] transition-colors duration-200 ease-in-out",
+            dragOver && "border-primary border-2 border-dotted"
           )}
-          style={{
-            background: 'var(--color-surface)',
-            border: `1px solid ${dragOver ? 'var(--color-primary)' : 'var(--color-border)'}`,
-            boxShadow: 'var(--shadow-sm)',
-          }}
         >
           {(hasTasks || hasFiles) && (
-            <div
-              className="flex max-h-72 flex-col overflow-y-auto empty:hidden"
-              style={{
-                borderBottom: '1px solid var(--color-border-light)',
-                background: 'linear-gradient(135deg, var(--color-surface-hover) 0%, var(--color-surface) 100%)'
-              }}
-            >
+            <div className="flex max-h-72 flex-col overflow-y-auto border-b border-border bg-sidebar empty:hidden">
               {!metaOpen && (
                 <>
                   {(() => {
@@ -606,59 +579,34 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
               blocks={contentBlocks}
               onRemove={removeBlock}
             />
-            {/* 现代化输入框 */}
-            <div className="relative">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                placeholder={isLoading ? "AI 正在思考中..." : "输入您的消息... (Enter 发送, Shift+Enter 换行)"}
-                className="field-sizing-content w-full resize-none border-0 bg-transparent px-[22px] pb-[15px] pt-[16px] text-sm leading-7 outline-none placeholder:text-muted-foreground"
-                style={{ color: 'var(--color-text-primary)', minHeight: '52px', maxHeight: '200px' }}
-                rows={1}
-              />
-            </div>
-
-            {/* 底部工具栏 - 更精致的布局 */}
-            <div
-              className="flex items-center justify-between gap-3 px-4 py-3"
-              style={{
-                borderTop: '1px solid var(--color-border-light)',
-                background: 'linear-gradient(180deg, transparent 0%, var(--color-surface-hover) 100%)',
-                borderRadius: '0 0 1rem 1rem'
-              }}
-            >
-              <div className="flex items-center gap-5">
-                {/* 上传按钮 */}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={isLoading ? "运行中..." : "输入您的消息..."}
+              className="font-inherit field-sizing-content flex-1 resize-none border-0 bg-transparent px-[18px] pb-[13px] pt-[14px] text-sm leading-7 text-primary outline-none placeholder:text-tertiary"
+              rows={1}
+            />
+            <div className="flex justify-between gap-2 p-3">
+              <div className="flex items-center gap-4">
                 <Label
                   htmlFor="file-input"
-                  className="group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 hover:bg-accent"
-                  style={{ color: 'var(--color-text-secondary)' }}
+                  className="flex cursor-pointer items-center gap-2 text-muted-foreground hover:text-primary"
                 >
-                  <div
-                    className="flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200 group-hover:scale-110"
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(6, 182, 212, 0.06) 100%)',
-                      color: 'var(--color-primary)'
-                    }}
-                  >
-                    <Plus size={18} strokeWidth={2} />
-                  </div>
-                  <span className="hidden sm:inline">上传文件</span>
+                  <Plus className="size-5" />
+                  <span className="text-sm">上传文件</span>
                 </Label>
                 <input
                   id="file-input"
                   type="file"
                   onChange={handleFileUpload}
                   multiple
-                  accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                  accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.doc,.docx"
                   className="hidden"
                 />
-
-                {/* RAG 开关 */}
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <Switch
                     id="rag-switch"
                     checked={enableRag}
@@ -667,53 +615,36 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
                   />
                   <Label
                     htmlFor="rag-switch"
-                    className="cursor-pointer text-sm font-medium transition-colors duration-200"
-                    style={{ color: enableRag ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}
+                    className="cursor-pointer text-sm text-muted-foreground hover:text-primary"
                   >
-                    RAG 检索
+                    开启 RAG
                   </Label>
                 </div>
               </div>
-
-              {/* 发送按钮 */}
-              <Button
-                type={isLoading ? "button" : "submit"}
-                variant={isLoading ? "destructive" : "default"}
-                onClick={isLoading ? stopStream : handleSubmit}
-                disabled={
-                  !isLoading &&
-                  (submitDisabled ||
-                    (!input.trim() && contentBlocks.length === 0))
-                }
-                className="gap-2 rounded-lg px-5 font-medium transition-all duration-200 disabled:opacity-40"
-                style={!isLoading ?
-                  {
-                    background: input.trim() || contentBlocks.length > 0
-                      ? 'var(--color-primary)'
-                      : 'var(--color-surface-hover)',
-                    color: (input.trim() || contentBlocks.length > 0) ? 'white' : 'var(--color-text-tertiary)',
-                    border: 'none'
-                  } :
-                  { background: '#dc2626' }
-                }
-              >
-                {isLoading ? (
-                  <>
-                    <div className="relative h-4 w-4">
-                      <div className="absolute inset-0 animate-ping opacity-75">
-                        <Square size={14} fill="white" />
-                      </div>
-                      <Square size={14} fill="white" className="relative" />
-                    </div>
-                    <span>停止生成</span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowUp size={18} className="transition-transform group-hover:-translate-y-0.5" />
-                    <span>发送</span>
-                  </>
-                )}
-              </Button>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type={isLoading ? "button" : "submit"}
+                  variant={isLoading ? "destructive" : "default"}
+                  onClick={isLoading ? stopStream : handleSubmit}
+                  disabled={
+                    !isLoading &&
+                    (submitDisabled ||
+                      (!input.trim() && contentBlocks.length === 0))
+                  }
+                >
+                  {isLoading ? (
+                    <>
+                      <Square size={14} />
+                      <span>停止</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowUp size={18} />
+                      <span>发送</span>
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </form>
         </div>

@@ -57,7 +57,7 @@
   },
   "_buildHash": "NC81OmFIVnBZMlhvaklQb3RvVTZVRWd6Tnc9PTplMDliY2E4Ng==",
   "devDependencies": {
-    "@eslint/js": "^9.0.0",
+    "@eslint/js": "^10.0.1",
     "@headlessui/tailwindcss": "^0.2.2",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tailwindcss/forms": "^0.5.7",

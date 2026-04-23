@@ -6,6 +6,8 @@
 """
 
 import asyncio
+import base64
+import json
 from functools import lru_cache
 from typing import Union
 
@@ -13,7 +15,8 @@ from langchain.tools import tool
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from agents.testcase.excel_exporter import export_test_cases_to_excel
+from app.testcase_agent.excel_exporter import export_test_cases_to_excel
+# from app.processors.pdf import extract_pdf_text_from_file
 
 # MCP服务器配置
 MCP_SERVER_CONFIGS = {
@@ -49,9 +52,27 @@ def export_testcases_to_excel(test_cases: list, output_path: str, sheet_name: st
         sheet_name: 工作表名称，默认为 "测试用例"
 
     Returns:
-        导出成功的文件绝对路径
+        JSON 字符串，包含文件绝对路径和 base64 编码的文件内容（供前端直接下载）。
+        格式：{"file_path": "...", "base64_data": "...", "filename": "..."}
     """
-    return export_test_cases_to_excel(test_cases, output_path, sheet_name)
+    file_path = export_test_cases_to_excel(test_cases, output_path, sheet_name)
+
+    # 读取文件并编码为 base64，使前端可直接通过 Blob 下载
+    try:
+        with open(file_path, "rb") as f:
+            b64_data = base64.b64encode(f.read()).decode("ascii")
+        filename = __import__("pathlib").Path(file_path).name or "测试用例.xlsx"
+    except Exception as e:
+        print(f"[export_testcases_to_excel] 读取文件失败: {e}")
+        b64_data = ""
+        filename = ""
+
+    result = json.dumps({
+        "file_path": file_path,
+        "base64_data": b64_data,
+        "filename": filename,
+    }, ensure_ascii=False)
+    return result
 
 
 @lru_cache(maxsize=1)
@@ -97,48 +118,16 @@ def get_tool_name(tool: Union[BaseTool, dict]) -> str:
     return getattr(tool, "name", "")
 
 
-# RAG 系统提示词扩展
+# RAG 系统提示词扩展（已精简，详细规范请参见 rag-query Skill）
 RAG_SYSTEM_PROMPT_APPENDIX = """
 
 ---
-
-## 附录：RAG工具使用指南
-
-### 可用RAG工具列表
+ 
+## 附录：可用 RAG 工具列表
 
 {rag_tools_description}
 
-### RAG检索最佳实践
-
-**关键词构建技巧**：
-- 使用模块名称 + 操作类型组合：如 "登录功能测试要点"
-- 使用业务对象 + 场景：如 "订单状态流转规则"
-- 使用技术术语 + 测试维度：如 "API接口安全测试"
-
-**多工具并行策略**：
-当有多个RAG工具可用时，应对同一查询并行调用所有工具，综合各工具的检索结果。
-
-**结果处理规范**：
-1. 优先采用检索结果中置信度高的信息
-2. 多个来源信息冲突时，标注差异并说明采用的依据
-3. 检索结果不足以支撑分析时，明确标注信息缺口
-
-### 示例：登录功能需求分析时的RAG检索
-
-```
-用户需求："帮我设计登录功能的测试用例"
-
-正确的RAG检索过程：
-1. 提取关键词：["登录", "Login", "认证", "Authentication"]
-2. 构建检索查询："登录功能测试要点"、"认证模块业务规则"
-3. 调用RAG工具：query_knowledge_base(query="登录功能测试要点")
-4. 检索结果分析：
-   - [RAG检索] 发现历史用例包含：验证码时效、密码强度、并发登录限制
-   - [RAG检索] 发现业务规则：同一账号5分钟内最多3次错误尝试
-5. 融入需求分析：将上述约束纳入测试矩阵
-```
-
-⚠️ **重要**：RAG检索是Phase 1.1的强制步骤，未完成检索前不得进入Phase 2。
+> 详细的 RAG 检索策略、mode 选择规范、结果引用规范等，请严格遵循 `rag-query` Skill 执行。
 """
 
 
@@ -167,4 +156,14 @@ def get_all_tools() -> list:
     Returns:
         所有工具的列表
     """
+    # return [export_testcases_to_excel, extract_pdf_text_from_file] + rag_mcp_tools()
     return [export_testcases_to_excel] + rag_mcp_tools()
+
+
+def get_base_tools() -> list:
+    """获取基础工具列表（不包含RAG工具）。
+    
+    Returns:
+        基础工具列表
+    """
+    return [export_testcases_to_excel, extract_pdf_text_from_file]

@@ -93,35 +93,20 @@ function StatusFilterItem({
 function ErrorState({ message }: { message: string }) {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center">
-      <div
-        className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
-        style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%)' }}
-      >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-      </div>
-      <p className="text-sm font-semibold text-red-500">加载对话列表失败</p>
-      <p className="mt-1 max-w-[200px] text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>{message}</p>
+      <p className="text-sm text-red-600">加载对话列表失败</p>
+      <p className="mt-1 text-xs text-muted-foreground">{message}</p>
     </div>
   );
 }
 
 function LoadingState() {
   return (
-    <div className="space-y-3 p-4">
+    <div className="space-y-2 p-4">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="shimmer overflow-hidden rounded-xl p-4" style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)' }}>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-10 w-10 rounded-lg" style={{ background: 'var(--color-surface-hover)' }}></div>
-            <div className="flex-1 space-y-2">
-              <div className="h-4 w-3/5 rounded-md" style={{ background: 'var(--color-surface-hover)' }}></div>
-              <div className="h-3 w-2/5 rounded-md" style={{ background: 'var(--color-surface-hover)' }}></div>
-            </div>
-          </div>
-        </div>
+        <Skeleton
+          key={i}
+          className="h-16 w-full"
+        />
       ))}
     </div>
   );
@@ -129,18 +114,9 @@ function LoadingState() {
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center p-10 text-center animate-fadeIn">
-      <div
-        className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl"
-        style={{
-          background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(6, 182, 212, 0.06) 100%)',
-          boxShadow: 'var(--shadow-sm)'
-        }}
-      >
-        <MessageSquare size={32} strokeWidth={1.5} style={{ color: 'var(--color-primary-light)' }} />
-      </div>
-      <p className="text-base font-medium" style={{ color: 'var(--color-text-primary)' }}>暂无对话</p>
-      <p className="mt-1.5 max-w-[200px] text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>开始您的第一次对话吧</p>
+    <div className="flex flex-col items-center justify-center p-8 text-center">
+      <MessageSquare className="mb-2 h-12 w-12 text-gray-300" />
+      <p className="text-sm text-muted-foreground">暂无对话</p>
     </div>
   );
 }
@@ -297,32 +273,11 @@ export function ThreadList({
   }, [interruptedCount, onInterruptCountChange]);
 
   return (
-    <div
-      className="absolute inset-0 flex flex-col"
-      style={{ background: 'linear-gradient(180deg, var(--color-surface) 0%, var(--color-background) 100%)' }}
-    >
-      {/* 现代化侧边栏头部 */}
-      <div
-        className="grid flex-shrink-0 grid-cols-[1fr_auto] items-center gap-4 px-5 py-4"
-        style={{
-          borderBottom: '1px solid var(--color-border-light)',
-          background: 'var(--color-surface)',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-lg"
-            style={{ background: 'var(--color-primary-gradient)', boxShadow: 'var(--shadow-sm)' }}
-          >
-            <MessageSquare size={16} className="text-white" />
-          </div>
-          <h2 className="text-lg font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
-            对话列表
-          </h2>
-        </div>
-
-        <div className="flex items-center gap-2.5">
+    <div className="absolute inset-0 flex flex-col">
+      {/* Header with title, filter, and close button */}
+      <div className="grid flex-shrink-0 grid-cols-[1fr_auto] items-center gap-3 border-b border-border p-4">
+        <h2 className="text-lg font-semibold tracking-tight">对话列表</h2>
+        <div className="flex items-center gap-2">
           <Select
             value={statusFilter}
             onValueChange={(v) => setStatusFilter(v as StatusFilter)}
@@ -372,7 +327,7 @@ export function ThreadList({
               variant="ghost"
               size="icon"
               onClick={onClose}
-              className="h-8 w-8 rounded-lg transition-all duration-200 hover:bg-accent hover:scale-105"
+              className="h-8 w-8"
               aria-label="关闭对话列表侧边栏"
             >
               <X className="h-4 w-4" />
@@ -381,7 +336,7 @@ export function ThreadList({
         </div>
       </div>
 
-      <ScrollArea className="scrollbar-pretty h-0 flex-1">
+      <ScrollArea className="h-0 flex-1">
         {threads.error && <ErrorState message={threads.error.message} />}
 
         {!threads.error && !threads.data && threads.isLoading && (
@@ -391,7 +346,7 @@ export function ThreadList({
         {!threads.error && !threads.isLoading && isEmpty && <EmptyState />}
 
         {!threads.error && !isEmpty && (
-              <div className="box-border w-full max-w-full overflow-hidden px-3 py-1">
+          <div className="box-border w-full max-w-full overflow-hidden p-2">
             {(
               Object.keys(GROUP_LABELS) as Array<keyof typeof GROUP_LABELS>
             ).map((group) => {
@@ -401,15 +356,12 @@ export function ThreadList({
               return (
                 <div
                   key={group}
-                  className="mb-3"
+                  className="mb-4"
                 >
-                  <h4
-                    className="m-0 px-1 py-2.5 text-xs font-bold uppercase tracking-widest"
-                    style={{ color: 'var(--color-text-tertiary)', letterSpacing: '0.08em' }}
-                  >
+                  <h4 className="m-0 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {GROUP_LABELS[group]}
                   </h4>
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-1">
                     {groupThreads.map((thread) => (
                       <div
                         key={thread.id}
@@ -437,44 +389,27 @@ export function ThreadList({
                           type="button"
                           onClick={() => onThreadSelect(thread.id)}
                           className={cn(
-                            "group grid w-full cursor-pointer items-center gap-3 px-4 py-3.5 text-left transition-all duration-200 hover:shadow-md",
+                            "grid w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors duration-200",
+                            "hover:bg-accent",
                             currentThreadId === thread.id
-                              ? "rounded-xl shadow-md"
-                              : "rounded-xl hover:translate-x-0.5"
+                              ? "border border-primary bg-accent hover:bg-accent"
+                              : "border border-transparent bg-transparent"
                           )}
-                          style={{
-                            background: currentThreadId === thread.id
-                              ? 'linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(6, 182, 212, 0.05) 100%)'
-                              : 'var(--color-surface)',
-                            border: `1px solid ${currentThreadId === thread.id ? 'var(--color-primary-light)' : 'var(--color-border-light)'}`,
-                            boxShadow: currentThreadId === thread.id ? 'var(--shadow-glow)' : 'none'
-                          }}
                           aria-current={currentThreadId === thread.id}
                         >
                           <div className="min-w-0 flex-1">
-                            {/* 标题 + 时间行 */}
-                            <div className="mb-1.5 flex items-center justify-between gap-3">
-                              <h3
-                                className="truncate text-sm font-semibold transition-colors group-hover:text-teal-600"
-                                style={{
-                                  color: currentThreadId === thread.id ? 'var(--color-primary)' : 'var(--color-text-primary)'
-                                }}
-                              >
+                            {/* Title + Timestamp Row */}
+                            <div className="mb-1 flex items-center justify-between">
+                              <h3 className="truncate text-sm font-semibold">
                                 {thread.title}
                               </h3>
-                              <span
-                                className="ml-2 shrink-0 rounded-md px-2 py-0.5 text-xs font-medium"
-                                style={{ color: 'var(--color-text-tertiary)', background: 'var(--color-surface-hover)' }}
-                              >
+                              <span className="ml-2 flex-shrink-0 text-xs text-muted-foreground">
                                 {formatTime(thread.updatedAt)}
                               </span>
                             </div>
-                            {/* 描述 + 状态行 */}
-                            <div className="flex items-center justify-between gap-3">
-                              <p
-                                className="flex-1 truncate text-sm leading-relaxed"
-                                style={{ color: 'var(--color-text-secondary)' }}
-                              >
+                            {/* Description + Status Row */}
+                            <div className="flex items-center justify-between">
+                              <p className="flex-1 truncate text-sm text-muted-foreground">
                                 {thread.description}
                               </p>
                               <div className="ml-2 flex-shrink-0">
@@ -496,22 +431,20 @@ export function ThreadList({
             })}
 
             {!isReachingEnd && (
-              <div className="flex justify-center py-5">
+              <div className="flex justify-center py-4">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => threads.setSize(threads.size + 1)}
                   disabled={isLoadingMore}
-                  className="rounded-xl px-6 font-medium transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
-                  style={{ borderColor: 'var(--color-border)' }}
                 >
                   {isLoadingMore ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" style={{ color: 'var(--color-primary)' }} />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       加载中...
                     </>
                   ) : (
-                    "加载更多对话"
+                    "加载更多"
                   )}
                 </Button>
               </div>

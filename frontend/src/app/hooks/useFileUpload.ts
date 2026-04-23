@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, ChangeEvent } from "react";
 import { toast } from "sonner";
 import { ContentBlock } from "@langchain/core/messages";
 import { fileToContentBlock } from "@/app/utils/multimodal";
-// FIXME  MC80OmFIVnBZMlhvaklQb3RvVTZZbEkzVFE9PTo1OGRhMDcxMQ==
 
 export const SUPPORTED_FILE_TYPES = [
   "image/jpeg",
@@ -10,13 +9,14 @@ export const SUPPORTED_FILE_TYPES = [
   "image/gif",
   "image/webp",
   "application/pdf",
+  // Word 文档
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/msword", // .doc
 ];
-// eslint-disable  MS80OmFIVnBZMlhvaklQb3RvVTZZbEkzVFE9PTo1OGRhMDcxMQ==
 
 interface UseFileUploadOptions {
   initialBlocks?: ContentBlock.Multimodal.Data[];
 }
-// NOTE  Mi80OmFIVnBZMlhvaklQb3RvVTZZbEkzVFE9PTo1OGRhMDcxMQ==
 
 export function useFileUpload({
   initialBlocks = [],
@@ -33,6 +33,19 @@ export function useFileUpload({
         (b) =>
           b.type === "file" &&
           b.mimeType === "application/pdf" &&
+          b.metadata?.filename === file.name,
+      );
+    }
+    // Word documents (.docx / .doc)
+    if (
+      file.type ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.type === "application/msword"
+    ) {
+      return blocks.some(
+        (b) =>
+          b.type === "file" &&
+          b.mimeType === file.type &&
           b.metadata?.filename === file.name,
       );
     }
@@ -66,7 +79,7 @@ export function useFileUpload({
 
     if (invalidFiles.length > 0) {
       toast.error(
-        "You have uploaded invalid file type. Please upload a JPEG, PNG, GIF, WEBP image or a PDF.",
+        "You have uploaded invalid file type. Please upload a JPEG, PNG, GIF, WEBP image, PDF, or Word document (.doc/.docx).",
       );
     }
     if (duplicateFiles.length > 0) {
@@ -126,7 +139,7 @@ export function useFileUpload({
 
       if (invalidFiles.length > 0) {
         toast.error(
-          "You have uploaded invalid file type. Please upload a JPEG, PNG, GIF, WEBP image or a PDF.",
+          "You have uploaded invalid file type. Please upload a JPEG, PNG, GIF, WEBP image, PDF, or Word document (.doc/.docx).",
         );
       }
       if (duplicateFiles.length > 0) {
@@ -197,8 +210,7 @@ export function useFileUpload({
   const resetBlocks = () => setContentBlocks([]);
 
   /**
-   * Handle paste event for files (images, PDFs)
-   * Can be used as onPaste={handlePaste} on a textarea or input
+   * Handle paste event for files (images, PDFs, Word docs)
    */
   const handlePaste = async (
     e: React.ClipboardEvent<HTMLTextAreaElement | HTMLInputElement>,
@@ -223,12 +235,25 @@ export function useFileUpload({
     const invalidFiles = files.filter(
       (file) => !SUPPORTED_FILE_TYPES.includes(file.type),
     );
-    const isDuplicate = (file: File) => {
+    const isDuplicateInner = (file: File) => {
       if (file.type === "application/pdf") {
         return contentBlocks.some(
           (b) =>
             b.type === "file" &&
             b.mimeType === "application/pdf" &&
+            b.metadata?.filename === file.name,
+        );
+      }
+      // Word documents (.docx / .doc)
+      if (
+        file.type ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        file.type === "application/msword"
+      ) {
+        return contentBlocks.some(
+          (b) =>
+            b.type === "file" &&
+            b.mimeType === file.type &&
             b.metadata?.filename === file.name,
         );
       }
@@ -242,11 +267,11 @@ export function useFileUpload({
       }
       return false;
     };
-    const duplicateFiles = validFiles.filter(isDuplicate);
-    const uniqueFiles = validFiles.filter((file) => !isDuplicate(file));
+    const duplicateFiles = validFiles.filter(isDuplicateInner);
+    const uniqueFiles = validFiles.filter((file) => !isDuplicateInner(file));
     if (invalidFiles.length > 0) {
       toast.error(
-        "You have pasted an invalid file type. Please paste a JPEG, PNG, GIF, WEBP image or a PDF.",
+        "You have pasted an invalid file type. Please paste a JPEG, PNG, GIF, WEBP image, PDF, or Word document (.doc/.docx).",
       );
     }
     if (duplicateFiles.length > 0) {
@@ -271,4 +296,3 @@ export function useFileUpload({
     handlePaste,
   };
 }
-// FIXME  My80OmFIVnBZMlhvaklQb3RvVTZZbEkzVFE9PTo1OGRhMDcxMQ==

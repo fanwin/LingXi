@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+// TODO  MC8yOmFIVnBZMlhvaklQb3RvVTZlazVGZVE9PToyYTUzMjQ5Nw==
 
 function Skeleton({
   className,
@@ -6,11 +7,11 @@ function Skeleton({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("shimmer rounded-xl", className)}
-      style={{ background: 'linear-gradient(90deg, var(--color-surface) 0%, var(--color-surface-hover) 50%, var(--color-surface) 100%)', backgroundSize: '200% 100%' }}
+      className={cn("animate-pulse rounded-md bg-muted", className)}
       {...props}
     />
   );
 }
 
 export { Skeleton };
+// FIXME  MS8yOmFIVnBZMlhvaklQb3RvVTZlazVGZVE9PToyYTUzMjQ5Nw==

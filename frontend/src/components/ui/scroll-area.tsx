@@ -50,8 +50,7 @@ function ScrollBar({
     >
       <ScrollAreaPrimitive.ScrollAreaThumb
         data-slot="scroll-area-thumb"
-        className="relative flex-1 rounded-full transition-colors duration-200 hover:bg-primary/40"
-        style={{ background: 'linear-gradient(180deg, var(--color-primary-light) 0%, var(--color-primary) 100%)', opacity: 0.4 }}
+        className="relative flex-1 rounded-full bg-border"
       />
     </ScrollAreaPrimitive.ScrollAreaScrollbar>
   );

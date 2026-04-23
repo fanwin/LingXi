@@ -1,4 +1,5 @@
 "use client";
+// NOTE  MC8yOmFIVnBZMlhvaklQb3RvVTZSRGhyYlE9PTphMDgyMTZmZQ==
 
 import * as React from "react";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
@@ -14,18 +15,22 @@ function Switch({
       data-slot="switch"
       style={{
         display: "inline-flex",
-        height: "22px",
-        width: "40px",
+        height: "20px",
+        width: "36px",
         alignItems: "center",
         borderRadius: "9999px",
-        border: "none",
+        border: "1px solid #d1d5db",
         backgroundColor: "var(--color-border)",
         cursor: "pointer",
-        transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-        boxShadow: "inset 0 1px 3px rgba(0,0,0,0.1)",
+        transition: "background-color 0.2s",
+      }}
+      data-state-styles={{
+        checked: {
+          backgroundColor: "var(--color-primary)",
+        },
       }}
       className={cn(
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 data-[state=checked]:!bg-[var(--color-primary)] data-[state=checked]:!shadow-[inset_0_1px_3px_rgba(0,0,0,0.15),0_0_8px_rgba(13,148,136,0.3)]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:!bg-[var(--color-primary)]",
         className
       )}
       {...props}
@@ -34,18 +39,19 @@ function Switch({
         data-slot="switch-thumb"
         style={{
           display: "block",
-          width: "18px",
-          height: "18px",
+          width: "16px",
+          height: "16px",
           borderRadius: "9999px",
           backgroundColor: "white",
-          boxShadow: "0 2px 6px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0,0,0,0.1)",
-          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-          transform: "translateX(2px)",
+          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
+          transition: "transform 0.2s",
+          transform: "translateX(1px)",
         }}
-        className="data-[state=checked]:!translate-x-[20px] data-[state=checked]:!scale-105"
+        className="data-[state=checked]:!translate-x-[17px]"
       />
     </SwitchPrimitive.Root>
   );
 }
 
 export { Switch };
+// FIXME  MS8yOmFIVnBZMlhvaklQb3RvVTZSRGhyYlE9PTphMDgyMTZmZQ==

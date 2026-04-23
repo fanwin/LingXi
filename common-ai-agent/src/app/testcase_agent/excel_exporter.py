@@ -40,12 +40,30 @@ _DEFAULT_COLUMN_WIDTHS = {
 }
 
 
-def _flatten_steps(steps: list[dict[str, Any]] | None) -> str:
-    """将步骤列表转换为带序号的文本。"""
+def _flatten_steps(steps: list[dict[str, Any]] | str | None) -> str:
+    """将步骤列表或 Markdown 文本转换为带序号的文本。
+    
+    支持两种输入格式（兼容 LLM 不同输出风格）：
+      1. list[dict]: [{"seq":1, "action":"点击", ...}, ...]  → 结构化解析
+      2. str:         "1. 点击登录\n2. 输入密码..."          → 直接使用
+    """
     if not steps:
         return ""
+    
+    # 字符串格式（LLM 常见输出）：直接返回
+    if isinstance(steps, str):
+        return steps.strip()
+    
+    if not isinstance(steps, list):
+        return str(steps)
+    
     lines = []
     for step in steps:
+        # 兼容 step 为字典或字符串
+        if isinstance(step, str):
+            lines.append(step)
+            continue
+        
         seq = step.get("seq", step.get("step", len(lines) + 1))
         action = step.get("action", step.get("操作描述", ""))
         target = step.get("target", step.get("操作对象", ""))
@@ -107,7 +125,7 @@ def export_test_cases_to_excel(
     sheet_name: str = "测试用例",
 ) -> str:
     """
-    将测试用例列表导出为 Excel 文件。
+    将测试用例列表导出为 Excel 格式的文件，不导出 pptx，pdf格式。
 
     支持的测试用例字段（兼容 JSON / CSV / Markdown 中定义的格式）：
       - id / 用例编号
