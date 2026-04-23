@@ -31,12 +31,6 @@ from src.app.testcase_agent.cache import compute_content_hash, compute_file_hash
 from src.app.testcase_agent.file_utils import save_base64_to_local, save_base64_image_to_local
 from src.app.testcase_agent.image_analyzer import analyze_image
 from src.app.testcase_agent.pdf_analyzer import analyze_pdf, analyze_pdf_from_url
-from src.app.testcase_agent.word_analyzer import analyze_docx, analyze_docx_from_base64
-
-# 文档类型常量
-_MIME_PDF = "application/pdf"
-_MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-_MIME_DOC = "application/msword"
 
 
 # ============================================================
@@ -88,13 +82,12 @@ def transform_multimodal_message(message: HumanMessage) -> HumanMessage:
     将多模态 HumanMessage 转换为纯文本格式。
 
     处理流程：
-      0. 从 additional_kwargs.attachments 提取前端上传的 PDF（无论 content 类型）
       1. 遍历 content 数组中的每个 part
       2. 文本块 → 直接收集
       3. 图片块 → Vision 模型分析（带 LRU 缓存）
       4. PDF 块 → PyMuPDF4LLM 解析（带 LRU 缓存）
       5. 其他文件 → 记录元信息
-      6. 纯文本中的 PDF URL → 自动识别并解析（带缓存）
+      6. 纯文本中的 PDF URL → 自动识别并解析
       7. 组装：content = 用户可见文字 + 标记包裹的模型专用数据
 
     Args:
@@ -105,32 +98,19 @@ def transform_multimodal_message(message: HumanMessage) -> HumanMessage:
     """
     content = message.content
 
-    # ---- 各类内容收集器（统一初始化） ----
+    # 已经是纯文本，检查是否包含 PDF URL
+    if isinstance(content, str):
+        return _handle_plain_text_with_urls(message, content)
+
+    if not isinstance(content, list):
+        return message
+
+    # ---- 各类内容收集器 ----
     text_parts: list[str] = []
     image_descriptions: list[str] = []
     document_contents: list[str] = []
     attachment_summary_parts: list[str] = []
     attachment_metadata: list[dict] = []
-
-    # ★★★ 关键修复：先处理 additional_kwargs.attachments 中的 PDF ★★★
-    # 必须在 content 类型判断之前执行，否则"只上传PDF无文字"的场景会走
-    # isinstance(content,str) 分支直接返回，导致 PDF 永远不被解析。
-    raw_attachments = message.additional_kwargs.get("attachments", [])
-    if isinstance(raw_attachments, list):
-        _process_pdf_attachments(
-            raw_attachments, text_parts,
-            document_contents, attachment_summary_parts, attachment_metadata,
-        )
-
-    # 已经是纯文本，检查是否包含 PDF URL
-    if isinstance(content, str):
-        return _handle_plain_text_with_urls(
-            message, content, document_contents,
-            attachment_summary_parts, attachment_metadata,
-        )
-
-    if not isinstance(content, list):
-        return message
 
     for part in content:
         _process_part(
@@ -161,41 +141,32 @@ def transform_multimodal_message(message: HumanMessage) -> HumanMessage:
     return new_msg
 
 
-def _handle_plain_text_with_urls(
-    message: HumanMessage,
-    content: str,
-    document_contents: list[str] | None = None,
-    attachment_summary_parts: list[str] | None = None,
-    attachment_metadata: list[dict] | None = None,
-) -> HumanMessage:
+def _handle_plain_text_with_urls(message: HumanMessage, content: str) -> HumanMessage:
     """
     处理纯文本消息，检查是否包含 PDF URL 或本地 PDF 路径。
 
     Args:
         message: 原始消息
         content: 纯文本内容
-        document_contents: 已收集的文档内容（来自 attachments 预处理）
-        attachment_summary_parts: 已收集的附件摘要（来自 attachments 预处理）
-        attachment_metadata: 已收集的附件元信息（来自 attachments 预处理）
 
     Returns:
-        如果包含 PDF URL / 本地路径 / 附件PDF 有解析结果，返回转换后的消息；否则返回原消息
+        如果包含 PDF URL 或本地路径，返回转换后的消息；否则返回原消息
     """
     pdf_urls = extract_pdf_urls(content)
     pdf_paths = extract_pdf_paths(content)
 
-    # 延迟初始化：如果调用方未传入（兼容旧调用方式）
-    if document_contents is None:
-        document_contents = []
-    if attachment_summary_parts is None:
-        attachment_summary_parts = []
-    if attachment_metadata is None:
-        attachment_metadata = []
+    if not pdf_urls and not pdf_paths:
+        return message
 
     if pdf_urls:
         print(f"[transformer] 🔗 检测到纯文本中的 PDF URL: {len(pdf_urls)} 个")
     if pdf_paths:
         print(f"[transformer] 📂 检测到纯文本中的本地 PDF 路径: {len(pdf_paths)} 个")
+
+    # 收集器
+    document_contents: list[str] = []
+    attachment_summary_parts: list[str] = []
+    attachment_metadata: list[dict] = []
 
     # 处理所有 PDF URL
     if pdf_urls:
@@ -205,23 +176,14 @@ def _handle_plain_text_with_urls(
     if pdf_paths:
         _process_pdf_paths(pdf_paths, content, document_contents, attachment_summary_parts, attachment_metadata)
 
-    # 如果没有成功解析任何 PDF（URL/路径/附件均无），返回原消息
+    # 如果没有成功解析任何 PDF，返回原消息
     if not document_contents:
         return message
 
     # 组装消息
     model_context = "\n".join(document_contents).strip()
 
-    # visible_text：有用户文字则显示文字，否则显示附件摘要
-    text_for_display = content.strip() if content.strip() else None
-    final_content = ""
-    if text_for_display:
-        final_content = text_for_display
-    elif attachment_summary_parts:
-        final_content = "[已上传: " + ", ".join(attachment_summary_parts) + "]"
-    else:
-        final_content = ""
-
+    final_content = content
     if model_context:
         final_content += (
             _MODEL_DATA_MARKER_START
@@ -305,10 +267,7 @@ def _process_pdf_urls(
     attachment_metadata: list[dict],
 ) -> None:
     """
-    处理提取到的 PDF URL 列表（含 LRU 缓存）。
-
-    缓存策略：基于 URL 字符串的 MD5 哈希，
-    相同 URL 的解析结果会被缓存，避免重复下载和解析。
+    处理提取到的 PDF URL 列表。
 
     Args:
         pdf_urls: PDF URL 列表
@@ -321,33 +280,10 @@ def _process_pdf_urls(
         print(f"[transformer] 🌐 解析在线 PDF: {url}")
 
         try:
-            # ---- 基于 URL 查询缓存 ----
-            url_cache_key = compute_content_hash(url)
-            cached_result = get_pdf_cached(url_cache_key) if url_cache_key else None
-
-            if cached_result is not None:
-                print(f"[transformer] 🌐 在线 PDF 命中缓存 (hash={url_cache_key[:12]}...)")
-                document_contents.append(cached_result)
-
-                filename = url.split('/')[-1].split('?')[0] or "在线文档.pdf"
-                attachment_summary_parts.append(f"📕 {filename}")
-                attachment_metadata.append({
-                    "type": "file",
-                    "mimeType": "application/pdf",
-                    "filename": filename,
-                    "url": url,
-                })
-                continue
-
-            # ---- 未命中，执行完整解析 ----
+            # 调用在线 PDF 解析
             doc_content = analyze_pdf_from_url(url, user_text)
 
             if doc_content:
-                # 写入缓存
-                if url_cache_key:
-                    put_pdf_cache(url_cache_key, doc_content)
-                    print(f"[transformer] 🌐 在线 PDF 已缓存 (hash={url_cache_key[:12]}...)")
-
                 document_contents.append(doc_content)
 
                 # 提取文件名
@@ -485,7 +421,7 @@ def _process_part(
     # --- 文件块 ---
     if part_type == "file":
         _handle_file_part(
-            part, text_parts, image_descriptions, document_contents, attachment_summary_parts, attachment_metadata,
+            part, text_parts, document_contents, attachment_summary_parts, attachment_metadata,
         )
         return
 
@@ -529,149 +465,27 @@ def _handle_image_part(
                 image_descriptions.append(f"\n📷 **图片内容分析**：\n{desc}")
 
 
-def _process_pdf_attachments(
-    raw_attachments: list,
-    text_parts: list[str],
-    document_contents: list[str],
-    attachment_summary_parts: list[str],
-    attachment_metadata: list[dict],
-) -> None:
-    """
-    从 additional_kwargs.attachments 中提取前端上传的文档（PDF / Word）并解析（含 LRU 缓存）。
-
-    前端通过 useFileUpload 上传文件时，文件数据放在
-    message.additional_kwargs.attachments（而非 content 列表中），
-    因此 transform_multimodal_message 的主循环无法捕获到这些附件。
-    必须在此处显式提取，否则每次提交相同文件都会重复解析。
-
-    缓存策略：
-      source_data（base64 payload）→ compute_content_hash() → MD5 哈希 → 查询/写入缓存
-
-    Args:
-        raw_attachments: 原始附件列表（来自 message.additional_kwargs.attachments）
-        text_parts: 文本内容收集器
-        document_contents: 文档内容收集器
-        attachment_summary_parts: 附件摘要收集器
-        attachment_metadata: 附件元数据收集器
-    """
-    for att in raw_attachments:
-        if not isinstance(att, dict):
-            continue
-
-        # 检测 PDF 或 Word 类型
-        mime = att.get("mimeType", "")
-        filename = att.get("filename", "attachment")
-        is_pdf = mime == _MIME_PDF or filename.lower().endswith(".pdf")
-        is_doc = _is_word_document(filename, mime)
-
-        if not (is_pdf or is_doc):
-            continue
-
-        # 兼容两种字段名：
-        #   "data"      — 前端 ContentBlock.Multimodal.Data 标准字段（LangChain）
-        #   "source_data" — 后端内部约定字段（旧代码遗留）
-        source_data = att.get("source_data") or att.get("data", "")
-        if not source_data or not isinstance(source_data, str):
-            doc_type_label = "PDF" if is_pdf else "Word"
-            print(f"[transformer] 📎 附件 {doc_type_label} 无 base64 数据，跳过: {filename}"
-                  f" (可用字段: {[k for k in att.keys()]})")
-            continue
-
-        doc_label = "PDF" if is_pdf else "Word"
-        print(f"[transformer] 处理上传附件 {doc_label}: {filename}")
-
-        # ---- 缓存查询 ----
-        cache_key = compute_content_hash(source_data)
-        cached_result = get_pdf_cached(cache_key) if cache_key else None
-
-        if cached_result is not None:
-            print(f"[transformer] 附件 {doc_label} 命中缓存 (hash={cache_key[:12]}...)")
-            document_contents.append(cached_result)
-            # 记录元信息
-            if is_pdf:
-                attachment_summary_parts.append(f"📕 {filename}")
-            else:
-                attachment_summary_parts.append(f"📘 {filename}")
-            attachment_metadata.append({
-                "type": "file",
-                "mimeType": mime,
-                "filename": filename,
-            })
-            continue
-
-        # ---- 未命中，执行完整解析 ----
-        try:
-            if is_pdf:
-                pdf_data_url = f"data:{_MIME_PDF};base64,{source_data}"
-                save_result = save_base64_to_local(pdf_data_url, preferred_filename=filename)
-                if save_result:
-                    local_path, _ = save_result
-                    user_text = " ".join(text_parts)
-                    doc_content = analyze_pdf(local_path, user_text)
-                    if doc_content and cache_key:
-                        put_pdf_cache(cache_key, doc_content)
-                        print(f"[transformer] 附件 PDF 已缓存 (hash={cache_key[:12]}...)")
-                    if doc_content:
-                        document_contents.append(doc_content)
-                else:
-                    print(f"[transformer] ⚠️ 附件 PDF 保存本地失败: {filename}")
-            else:
-                # Word 文档：直接从 base64 解析（无需先写磁盘）
-                doc_content = analyze_docx_from_base64(source_data, filename)
-                if doc_content and cache_key:
-                    put_pdf_cache(cache_key, doc_content)
-                    print(f"[transformer] 附件 Word 已缓存 (hash={cache_key[:12]}...)")
-                if doc_content:
-                    document_contents.append(doc_content)
-
-        except Exception as e:
-            print(f"[transformer] ❌ 附件 {doc_label} 解析异常: {e}")
-            import traceback
-            traceback.print_exc()
-
-        # 无论解析成功与否都记录元信息
-        if is_pdf:
-            attachment_summary_parts.append(f"📕 {filename}")
-        else:
-            attachment_summary_parts.append(f"📘 {filename}")
-        attachment_metadata.append({
-            "type": "file",
-            "mimeType": mime,
-            "filename": filename,
-        })
-
-
-def _is_word_document(filename: str, mime: str) -> bool:
-    """检查是否为 Word 文档（.docx / .doc）。"""
-    return (
-        mime in (_MIME_DOCX, _MIME_DOC)
-        or filename.lower().endswith(".docx")
-        or filename.lower().endswith(".doc")
-    )
-
-
 def _handle_file_part(
     part: dict,
     text_parts: list[str],
-    image_descriptions: list[str],
     document_contents: list[str],
     attachment_summary_parts: list[str],
     attachment_metadata: list[dict],
 ) -> None:
-    """处理文件类型的 part（PDF 或 Word 文档）。"""
+    """处理文件类型的 part。"""
     filename = part.get("filename", "未知文件")
     media_type = (part.get("source_media_type") or "").lower()
     source_data = part.get("source_data", "")
 
     print(f"[transformer] 📎 检测到文件: {filename} (MIME: {media_type})")
 
-    is_pdf = media_type == _MIME_PDF or filename.lower().endswith(".pdf")
-    is_doc = _is_word_document(filename, media_type)
+    is_pdf = (
+        media_type == "application/pdf"
+        or filename.lower().endswith(".pdf")
+    )
 
     if is_pdf:
         attachment_summary_parts.append(f"📕 {filename}")
-    elif is_doc:
-        attachment_summary_parts.append(f"📘 {filename}")
     else:
         attachment_summary_parts.append(f"📎 {filename}")
 
@@ -686,14 +500,9 @@ def _handle_file_part(
         _handle_pdf_file(source_data, filename, text_parts, document_contents)
         return
 
-    # Word 文档完整解析链路
-    if is_doc and source_data:
-        _handle_docx_file(source_data, filename, text_parts, document_contents)
-        return
-
-    # 非 PDF/Word 或解析失败的兜底
-    type_label = MEDIA_TYPE_LABELS.get(media_type, "文档")
-    file_info = f"\n📎 **{type_label}**: {filename}"
+    # 非 PDF 或 PDF 解析失败的兜底
+    type_label = MEDIA_TYPE_LABELS.get(media_type, "文件")
+    file_info = f"\n📎 **{type_label}附件**: {filename}"
     if media_type:
         file_info += f" (类型: {media_type})"
     file_info += "\n> 注：该文件未能被自动解析内容。"
@@ -732,38 +541,6 @@ def _handle_pdf_file(
                 document_contents.append(doc_content)
     except Exception as e:
         print(f"[transformer] ⚠️ PDF 解析失败: {e}")
-
-
-def _handle_docx_file(
-    source_data: str,
-    filename: str,
-    text_parts: list[str],
-    document_contents: list[str],
-) -> None:
-    """处理 Word 文档的完整解析（含缓存查询，复用 PDF 缓存体系）。"""
-    print("[transformer] 📘 启动 Word 文档解析...")
-
-    # Word 复用 PDF 缓存 key 空间（文档内容缓存，不区分类型）
-    doc_cache_key = compute_content_hash(source_data)
-    cached_doc = get_pdf_cached(doc_cache_key) if doc_cache_key else None
-
-    if cached_doc is not None:
-        print(f"[transformer] 📘 Word 文档命中缓存 (hash={doc_cache_key[:12]}...)")
-        document_contents.append(cached_doc)
-        return
-
-    # 未命中，执行完整解析
-    try:
-        doc_content = analyze_docx_from_base64(source_data, filename)
-        if doc_content and doc_cache_key:
-            put_pdf_cache(doc_cache_key, doc_content)
-            print(f"[transformer] 📘 Word 文档已缓存 (hash={doc_cache_key[:12]}...)")
-        if doc_content:
-            document_contents.append(doc_content)
-    except Exception as e:
-        print(f"[transformer] ⚠️ Word 文档解析失败: {e}")
-        import traceback
-        traceback.print_exc()
 
 
 # ============================================================

@@ -26,8 +26,6 @@ from langchain.agents import create_agent
 from utils.model_factory import GetModelByVendor
 
 from src.app.testcase_agent.middleware import check_message_flow, log_response
-from src.app.middleware.rag_context import RAGMiddleware
-from src.app.testcase_agent.tools import get_all_tools, export_testcases_to_excel
 
 SYSTEM_PROMPT = """你是一位资深的测试用例设计专家，拥有10年以上软件测试经验，精通功能测试、边界测试、异常测试、兼容性测试等各类测试方法。
 
@@ -150,7 +148,7 @@ def get_weather_tool(city: str) -> str:
 
 agent = create_agent(
     model=GetModelByVendor().generate_model_client(),
-    middleware=[check_message_flow, log_response, RAGMiddleware()],
-    tools=get_all_tools(),
+    middleware=[check_message_flow, log_response],
+    tools=[get_weather_tool],
     system_prompt=SYSTEM_PROMPT,
 )

@@ -39,7 +39,7 @@ class RAGMiddleware(AgentMiddleware):
 
     def _is_rag_enabled(self, request: ModelRequest) -> bool:
         context = getattr(request.runtime, "context", None) if request.runtime else None
-        return context["enable_rag"] if context else False
+        return getattr(context, "enable_rag", False) if context else False
 
     def wrap_model_call(self, request, handler):
         if self._is_rag_enabled(request):

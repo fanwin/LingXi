@@ -57,8 +57,7 @@ def check_message_flow(state: dict, runtime: Runtime) -> dict[str, Any] | None:
     大模型执行前的中间件 —— 多模态内容检测与转换。
 
     策略：
-      检测最后一条 HumanMessage 是否含有多模态 content (list)、PDF URL/路径、
-      或 additional_kwargs.attachments 中的上传附件，
+      检测最后一条 HumanMessage 是否含有多模态 content (list) 或 PDF URL/路径，
       如果是 → 自动调用 transform_multimodal_message() 转换为纯文本 → 继续传递
       如果否 → 直接传递给模型
 
@@ -77,7 +76,6 @@ def check_message_flow(state: dict, runtime: Runtime) -> dict[str, Any] | None:
         if isinstance(last_msg, HumanMessage):
             content = last_msg.content
 
-            # 1. content 为多模态列表（图片/PDF file part）
             is_multimodal = (
                 isinstance(content, list)
                 and any(
@@ -86,7 +84,7 @@ def check_message_flow(state: dict, runtime: Runtime) -> dict[str, Any] | None:
                 )
             )
 
-            # 2. 纯文本中包含 PDF URL 或本地 PDF 路径
+            # 检查纯文本中是否包含 PDF URL 或本地 PDF 路径
             has_pdf_url = False
             has_pdf_path = False
             if isinstance(content, str):
@@ -100,14 +98,7 @@ def check_message_flow(state: dict, runtime: Runtime) -> dict[str, Any] | None:
                 if has_pdf_path:
                     print(f"\n[检测到本地 PDF 路径] {len(pdf_paths)} 个")
 
-            # 3. additional_kwargs.attachments 中有前端上传的 PDF 文件
-            #    前端通过 useFileUpload 上传的 PDF 放在此处（非 content 列表），
-            #    必须显式检测，否则只传附件无文字时会被当作普通纯文本跳过。
-            has_pdf_attachment = _has_pdf_attachments(last_msg)
-            if has_pdf_attachment:
-                print(f"\n[检测到文档附件] additional_kwargs.attachments 中存在 PDF/Word 文件")
-
-            if is_multimodal or has_pdf_url or has_pdf_path or has_pdf_attachment:
+            if is_multimodal or has_pdf_url or has_pdf_path:
                 _handle_multimodal_content(state, last_msg)
             else:
                 print("\n[纯文本] 无需转换\n")
@@ -115,32 +106,9 @@ def check_message_flow(state: dict, runtime: Runtime) -> dict[str, Any] | None:
     return None
 
 
-def _has_pdf_attachments(msg: HumanMessage) -> bool:
-    """检查消息的 additional_kwargs.attachments 是否包含 PDF 或 Word 文件。"""
-    raw_attachments = msg.additional_kwargs.get("attachments", [])
-    if not isinstance(raw_attachments, list):
-        return False
-    for att in raw_attachments:
-        if not isinstance(att, dict):
-            continue
-        mime = att.get("mimeType", "")
-        filename = att.get("filename", "")
-        if (
-            mime == "application/pdf"
-            or filename.lower().endswith(".pdf")
-            or mime in (
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "application/msword",
-            )
-            or filename.lower().endswith((".docx", ".doc"))
-        ):
-            return True
-    return False
-
-
 def _handle_multimodal_content(state: dict, last_msg: HumanMessage) -> None:
     """检测到多模态内容时，自动转换为纯文本。"""
-    print("\n[检测到多模态] 开始 图片/文档→文本 转换...")
+    print("\n[检测到多模态] 开始 图片/PDF→文本 转换...")
     transformed = transform_multimodal_message(last_msg)
     state["messages"][-1] = transformed
     print("[转换完成] 已替换为纯文本\n")

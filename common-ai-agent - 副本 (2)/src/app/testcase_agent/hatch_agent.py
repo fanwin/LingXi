@@ -27,7 +27,7 @@ from utils.model_factory import GetModelByVendor
 
 from src.app.testcase_agent.middleware import check_message_flow, log_response
 from src.app.middleware.rag_context import RAGMiddleware
-from src.app.testcase_agent.tools import get_all_tools, export_testcases_to_excel
+from src.app.testcase_agent.tools import get_all_tools
 
 SYSTEM_PROMPT = """你是一位资深的测试用例设计专家，拥有10年以上软件测试经验，精通功能测试、边界测试、异常测试、兼容性测试等各类测试方法。
 
