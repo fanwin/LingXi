@@ -20,6 +20,7 @@ import {
   extractStringFromMessageContent,
 } from "@/app/utils/utils";
 import { cn } from "@/lib/utils";
+import { Copy, Pencil, Check, RefreshCw } from "lucide-react";
 
 /** image_url block as sent to OpenAI-compatible APIs (e.g. Doubao) */
 interface ImageUrlBlock {
@@ -71,6 +72,8 @@ interface ChatMessageProps {
   stream?: any;
   onResumeInterrupt?: (value: any) => void;
   graphId?: string;
+  onEdit?: (content: string) => void;
+  onRegenerate?: () => void;
 }
 
 function areToolCallsEqual(prevToolCalls: ToolCall[], nextToolCalls: ToolCall[]) {
@@ -110,6 +113,8 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     stream,
     onResumeInterrupt,
     graphId,
+    onEdit,
+    onRegenerate,
   }) => {
     const isUser = message.type === "human";
     const isAi = message.type === "ai";
@@ -117,6 +122,8 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     const hasContent = messageContent && messageContent.trim() !== "";
     const hasToolCalls = toolCalls.length > 0;
     const isStreamingMessage = isAi && isStreaming === true;
+
+    const [copied, setCopied] = useState(false);
 
     const subAgents = useMemo(
       () =>
@@ -188,7 +195,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
         <div className={cn("min-w-0 max-w-full", isUser ? "max-w-[70%]" : "w-full")}>
           {isUser ? (
             /* ── Human message: images + PDFs + text ── */
-            <div className="mt-4 flex flex-col items-end gap-2">
+            <div className="group mt-4 flex flex-col items-end gap-2">
               {hasAttachments && (
                 <div className="flex flex-wrap justify-end gap-2">
                   {/* Images: rendered from data URL directly */}
@@ -217,11 +224,48 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                   </p>
                 </div>
               )}
+              {(hasContent || hasAttachments) && (
+                <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (messageContent) {
+                        navigator.clipboard.writeText(messageContent);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1000);
+                      }
+                    }}
+                    className={cn(
+                      "flex items-center gap-1 text-xs transition-colors",
+                      copied
+                        ? "text-success"
+                        : "text-muted-foreground hover:text-primary"
+                    )}
+                    title={copied ? "已复制" : "复制"}
+                  >
+                    {copied ? <Check size={12} /> : <Copy size={12} />}
+                    <span>{copied ? "已复制" : "复制"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (messageContent && onEdit) {
+                        onEdit(messageContent);
+                      }
+                    }}
+                    className="text-muted-foreground hover:text-primary flex items-center gap-1 text-xs"
+                    title="编辑"
+                  >
+                    <Pencil size={12} />
+                    <span>编辑</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             /* ── AI message ── */
             hasContent && (
-              <div className={cn("relative flex items-end gap-0")}>
+              <div className="group relative">
                 <div className="mt-4 overflow-hidden break-words text-sm font-normal leading-[150%] text-primary">
                   <MarkdownContent
                     content={messageContent}
@@ -232,6 +276,39 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                     <TestCaseExportBar rawResult={exportToolCall.result} />
                   )}
                 </div>
+                {!isStreamingMessage && (
+                  <div className="mt-1 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (messageContent) {
+                          navigator.clipboard.writeText(messageContent);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1000);
+                        }
+                      }}
+                      className={cn(
+                        "flex items-center gap-1 text-xs transition-colors",
+                        copied
+                          ? "text-success"
+                          : "text-muted-foreground hover:text-primary"
+                      )}
+                      title={copied ? "已复制" : "复制"}
+                    >
+                      {copied ? <Check size={12} /> : <Copy size={12} />}
+                      <span>{copied ? "已复制" : "复制"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRegenerate?.()}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                      title="重新生成"
+                    >
+                      <RefreshCw size={12} />
+                      <span>重新生成</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )
           )}

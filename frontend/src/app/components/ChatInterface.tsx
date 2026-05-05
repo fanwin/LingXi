@@ -125,6 +125,28 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
     [input, contentBlocks, isLoading, sendMessage, submitDisabled, enableRag]
   );
 
+  const handleEditMessage = useCallback((content: string) => {
+    setInput(content);
+    textareaRef.current?.focus();
+  }, []);
+
+  const handleRegenerate = useCallback(
+    (message: Message) => {
+      if (isLoading) return;
+
+      const metadata = stream.getMessagesMetadata?.(message);
+      const parentCheckpoint = metadata?.firstSeenState?.parent_checkpoint;
+
+      if (parentCheckpoint) {
+        stream.submit(undefined, {
+          checkpoint: parentCheckpoint,
+          config: { ...(assistant?.config ?? {}), recursion_limit: 1000 },
+        });
+      }
+    },
+    [isLoading, stream, assistant]
+  );
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (submitDisabled) return;
@@ -347,6 +369,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
                       isLastMessage ? resumeInterrupt : undefined
                     }
                     graphId={isLastMessage ? assistant?.graph_id : undefined}
+                    onEdit={handleEditMessage}
+                    onRegenerate={() => handleRegenerate(data.message)}
                   />
                 );
               })}
