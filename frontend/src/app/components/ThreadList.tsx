@@ -9,7 +9,7 @@ import {
   useCallback,
 } from "react";
 import { format } from "date-fns";
-import { Loader2, MessageSquare, MoreVertical, Pin, Pencil, Search } from "lucide-react";
+import { Loader2, MessageSquare, MoreVertical, Pin, Pencil, Search, Trash2 } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -158,6 +158,7 @@ export function ThreadList({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameThreadId, setRenameThreadId] = useState<string | null>(null);
+  const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const client = useClient();
@@ -294,6 +295,31 @@ export function ThreadList({
       }
     },
     [client]
+  );
+
+  const handleDeleteThread = useCallback(
+    async (threadId: string) => {
+      if (!confirm("确定要删除这条对话吗？此操作无法撤销。")) {
+        return;
+      }
+
+      setDeletingThreadId(threadId);
+      try {
+        await client.threads.delete(threadId);
+
+        if (currentThreadId === threadId) {
+          setCurrentThreadId(null);
+        }
+
+        mutateFn();
+      } catch (error) {
+        console.error("Failed to delete thread:", error);
+        alert("删除失败，请重试。");
+      } finally {
+        setDeletingThreadId(null);
+      }
+    },
+    [client, currentThreadId, setCurrentThreadId]
   );
 
   const handleOpenRename = useCallback((thread: ThreadItem) => {
@@ -512,6 +538,21 @@ export function ThreadList({
                             >
                               <Pin className="mr-2 h-4 w-4" />
                               {thread.pinned ? "取消置顶" : "置顶"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteThread(thread.id);
+                              }}
+                              disabled={deletingThreadId === thread.id}
+                            >
+                              {deletingThreadId === thread.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="mr-2 h-4 w-4" />
+                              )}
+                              删除
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
