@@ -37,6 +37,7 @@ import { FilesPopover } from "@/app/components/TasksFilesSidebar";
 import { useFileUpload } from "@/app/hooks/useFileUpload";
 import { ContentBlocksPreview } from "@/app/components/ContentBlocksPreview";
 import { Label } from "@/components/ui/label";
+import { CodeExportPanel } from "@/app/components/CodeExportPanel";
 
 interface ChatInterfaceProps {
   assistant: Assistant | null;
@@ -315,6 +316,27 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
     );
   }, [interrupt]);
 
+  // 提取所有已完成的 export_code_to_zip 工具调用结果
+  const codeExportCalls = useMemo(() => {
+    const calls: { id: string; result: string }[] = [];
+    for (const data of processedMessages) {
+      for (const tc of data.toolCalls) {
+        if (
+          tc.name === "export_code_to_zip" &&
+          tc.status === "completed" &&
+          typeof tc.result === "string" &&
+          tc.result.trim() !== ""
+        ) {
+          // 去重（同一条工具调用只记录一次）
+          if (!calls.find((c) => c.id === tc.id)) {
+            calls.push({ id: tc.id, result: tc.result });
+          }
+        }
+      }
+    }
+    return calls;
+  }, [processedMessages]);
+
   // ── 历史会话加载：骨架屏 + 防止逐轮刷新 ────────────────
   // 终极方案：
   //   批量加载期间 → 显示骨架屏，真实内容已渲染但 opacity:0 隐藏
@@ -438,6 +460,18 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
           </div>
         </div>
       </div>
+
+      {/* 代码导出面板：显示在输入框上方，折叠式 */}
+      {codeExportCalls.length > 0 && (
+        <div className="mx-auto w-[calc(100%-32px)] max-w-[1024px] px-0">
+          {codeExportCalls.map((call) => (
+            <CodeExportPanel
+              key={call.id}
+              rawResult={call.result}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="flex-shrink-0 bg-background">
         <div
@@ -718,7 +752,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
                   className={cn(
                     "transition-all duration-300",
                     isLoading
-                      ? "animate-pulse"
+                      ? "bg-gradient-to-r from-red-500 to-orange-500 shadow-md hover:shadow-lg border-0"
                       : "bg-gradient-to-r from-[#2F6868] to-[#1a9a8a] shadow-md hover:shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] border-0"
                   )}
                 >

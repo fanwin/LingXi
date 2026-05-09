@@ -2,12 +2,15 @@
 
 此模块包含所有可用的工具定义，包括：
 - 基础工具：导出测试用例到Excel
+- 代码工具：代码打包下载
 - RAG工具：通过MCP客户端获取的检索增强工具
 """
 
 import asyncio
 import base64
 import json
+import os
+import zipfile
 from functools import lru_cache
 from typing import Union
 
@@ -73,6 +76,134 @@ def export_testcases_to_excel(test_cases: list, output_path: str, sheet_name: st
         "filename": filename,
     }, ensure_ascii=False)
     return result
+
+
+@tool
+def export_code_to_zip(code_files: list, output_filename: str = "generated_code.zip") -> str:
+    """
+    将本次会话中生成的所有代码文件打包为 ZIP 下载。
+
+    当对话中生成代码文件时自动调用此工具，将代码打包供用户下载。
+    支持任意编程语言（.py/.js/.ts/.java/.go/.rs/.vue/.tsx 等）。
+
+    Args:
+        code_files: 代码文件列表，每项为字典，包含以下字段：
+            - filename: 文件名，含扩展名（必填），如 "main.py"、"App.tsx"
+            - content: 文件完整内容（必填）
+            - language: 编程语言标识（可选），如 "python" / "typescript" / "javascript"
+        output_filename: 输出的 ZIP 文件名，默认 "generated_code.zip"
+
+    Returns:
+        JSON 字符串，包含：
+        {
+            "file_path": "ZIP 文件绝对路径",
+            "base64_data": "ZIP 的 base64 编码（前端可直接下载）",
+            "filename": "ZIP 文件名",
+            "file_list": [
+                {"filename": "...", "language": "...", "size_bytes": ...}
+            ]
+        }
+    """
+    # 创建输出目录
+    exports_dir = os.path.join(os.getcwd(), "exports")
+    os.makedirs(exports_dir, exist_ok=True)
+
+    zip_path = os.path.join(exports_dir, output_filename)
+
+    file_list_meta = []
+
+    try:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for idx, cf in enumerate(code_files):
+                fname = cf.get("filename", f"code_file_{idx + 1}")
+                content = cf.get("content", "")
+                language = cf.get("language", "")
+
+                # 安全化文件名：防止路径穿越
+                safe_name = os.path.basename(fname)
+                if not safe_name:
+                    safe_name = f"code_file_{idx + 1}.txt"
+
+                # 写入 ZIP
+                zf.writestr(safe_name, content)
+
+                file_list_meta.append({
+                    "filename": safe_name,
+                    "language": language or _detect_language(safe_name),
+                    "size_bytes": len(content.encode("utf-8")),
+                })
+
+        print(f"[export_code_to_zip] 已打包 {len(code_files)} 个文件 → {zip_path}")
+
+    except Exception as e:
+        print(f"[export_code_to_zoom] 打包失败: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+    # 读取并 base64 编码
+    try:
+        with open(zip_path, "rb") as f:
+            b64_data = base64.b64encode(f.read()).decode("ascii")
+    except Exception as e:
+        print(f"[export_code_to_zip] 读取 ZIP 失败: {e}")
+        b64_data = ""
+
+    result = json.dumps({
+        "file_path": zip_path,
+        "base64_data": b64_data,
+        "filename": output_filename,
+        "file_count": len(file_list_meta),
+        "file_list": file_list_meta,
+    }, ensure_ascii=False)
+
+    return result
+
+
+def _detect_language(filename: str) -> str:
+    """根据文件扩展名检测编程语言。"""
+    ext_map = {
+        ".py": "python",
+        ".js": "javascript",
+        ".jsx": "javascript",
+        ".ts": "typescript",
+        ".tsx": "typescript",
+        ".java": "java",
+        ".go": "go",
+        ".rs": "rust",
+        ".c": "c",
+        ".cpp": "cpp",
+        ".h": "c",
+        ".hpp": "cpp",
+        ".cs": "csharp",
+        ".rb": "ruby",
+        ".php": "php",
+        ".swift": "swift",
+        ".kt": "kotlin",
+        ".scala": "scala",
+        ".r": "r",
+        ".sql": "sql",
+        ".sh": "bash",
+        ".bash": "bash",
+        ".yaml": "yaml",
+        ".yml": "yaml",
+        ".json": "json",
+        ".xml": "xml",
+        ".html": "html",
+        ".css": "css",
+        ".scss": "scss",
+        ".less": "less",
+        ".md": "markdown",
+        ".vue": "vue",
+        ".svelte": "svelte",
+        ".dockerfile": "dockerfile",
+        ".toml": "toml",
+        ".ini": "ini",
+        ".cfg": "ini",
+        ".txt": "text",
+    }
+    _, ext = os.path.splitext(filename.lower())
+    return ext_map.get(ext, "text")
 
 
 @lru_cache(maxsize=1)
@@ -157,7 +288,7 @@ def get_all_tools() -> list:
         所有工具的列表
     """
     # return [export_testcases_to_excel, extract_pdf_text_from_file] + rag_mcp_tools()
-    return [export_testcases_to_excel] + rag_mcp_tools()
+    return [export_testcases_to_excel, export_code_to_zip] + rag_mcp_tools()
 
 
 def get_base_tools() -> list:
