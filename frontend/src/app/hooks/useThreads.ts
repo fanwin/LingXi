@@ -11,11 +11,13 @@ export interface ThreadItem {
   title: string;
   description: string;
   assistantId?: string;
+  pinned?: boolean;
+  customTitle?: string;
 }
 // FIXME  MS80OmFIVnBZMlhvaklQb3RvVTZOVEZGYUE9PTo2MTBkOWZkMg==
 
 const DEFAULT_PAGE_SIZE = 20;
-// @ts-expect-error  Mi80OmFIVnBZMlhvaklQb3RvVTZOVEZGYUE9PTo2MTBkOWZkMg==
+// NOTE  Mi80OmFIVnBZMlhvaklQb3RvVTZOVEZGYUE9PTo2MTBkOWZkMg==
 
 export function useThreads(props: {
   status?: Thread["status"];
@@ -92,6 +94,13 @@ export function useThreads(props: {
         let title = "无标题对话";
         let description = "";
 
+        const metadata = (thread.metadata as Record<string, unknown>) || {};
+        const customTitle =
+          typeof metadata.customTitle === "string"
+            ? metadata.customTitle
+            : undefined;
+        const pinned = metadata.pinned === true;
+
         try {
           if (thread.values && typeof thread.values === "object") {
             const values = thread.values as any;
@@ -128,6 +137,8 @@ export function useThreads(props: {
           title,
           description,
           assistantId,
+          pinned,
+          customTitle,
         };
       });
     },

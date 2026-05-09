@@ -8,7 +8,7 @@ import { ConfigDialog } from "@/app/components/ConfigDialog";
 import { Button } from "@/components/ui/button";
 import { Assistant } from "@langchain/langgraph-sdk";
 import { ClientProvider, useClient } from "@/providers/ClientProvider";
-import { Settings, MessagesSquare, SquarePen } from "lucide-react";
+import { Settings, PanelLeftOpen, PanelLeftClose, SquarePen } from "lucide-react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/resizable";
 import { ThreadList } from "@/app/components/ThreadList";
 import { ChatProvider } from "@/providers/ChatProvider";
+import { cn } from "@/lib/utils";
 import { ChatInterface } from "@/app/components/ChatInterface";
 
 interface HomePageInnerProps {
@@ -113,25 +114,32 @@ function HomePageInner({
         initialConfig={config}
       />
       <div className="flex h-screen flex-col">
-        <header className="flex h-16 items-center justify-between border-b border-border px-6">
+        <header className="header-gradient-line relative flex h-16 items-center justify-between border-b border-border/50 px-6 glass">
           <div className="flex items-center gap-4">
-            <h1 className="text-xl font-semibold">AI智驱平台</h1>
-            {!sidebar && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebar("1")}
-                className="rounded-md border border-border bg-card p-3 text-foreground hover:bg-accent"
-              >
-                <MessagesSquare className="mr-2 h-4 w-4" />
-                对话列表
-                {interruptCount > 0 && (
-                  <span className="ml-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-destructive-foreground">
-                    {interruptCount}
-                  </span>
-                )}
-              </Button>
-            )}
+            <h1 className="text-gradient-brand text-xl font-bold tracking-tight">AI智驱平台</h1>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebar(sidebar ? null : "1")}
+              className={cn(
+                "relative h-8 w-8 rounded-md border border-border",
+                sidebar
+                  ? "bg-accent text-accent-foreground"
+                  : "bg-card text-foreground hover:bg-accent"
+              )}
+              aria-label={sidebar ? "收起侧边栏" : "展开侧边栏"}
+            >
+              {sidebar ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" />
+              )}
+              {!sidebar && interruptCount > 0 && (
+                <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-destructive-foreground">
+                  {interruptCount}
+                </span>
+              )}
+            </Button>
           </div>
           <div className="flex items-center gap-2">
             <div className="text-sm text-muted-foreground">
@@ -151,7 +159,7 @@ function HomePageInner({
               size="sm"
               onClick={() => setThreadId(null)}
               disabled={!threadId}
-              className="border-[#2F6868] bg-[#2F6868] text-white hover:bg-[#2F6868]/80"
+              className="shimmer-effect border-0 bg-gradient-to-r from-[#2F6868] to-[#0dd9b6] text-white shadow-md transition-all duration-300 hover:shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
             >
               <SquarePen className="mr-2 h-4 w-4" />
               新建对话
@@ -169,9 +177,9 @@ function HomePageInner({
                 <ResizablePanel
                   id="thread-history"
                   order={1}
-                  defaultSize={25}
-                  minSize={20}
-                  className="relative min-w-[380px]"
+                  defaultSize={18}
+                  minSize={15}
+                  className="relative min-w-[260px]"
                 >
                   <ThreadList
                     onThreadSelect={async (id) => {

@@ -95,14 +95,15 @@ export function TestCaseExportBar({ rawResult }: TestCaseExportBarProps) {
   return (
     <div
       className={cn(
-        "group mt-4 flex items-center gap-4 rounded-xl border px-5 py-3.5",
-        "border-[#2F6868]/25 bg-gradient-to-r from-[#2F6868]/[0.06] to-[#2F6868]/[0.02]",
-        "shadow-sm transition-all duration-300 hover:border-[#2F6868]/50 hover:shadow-md"
+        "group mt-4 flex items-center gap-4 rounded-2xl border px-5 py-3.5",
+        "border-[#2F6868]/20 bg-gradient-to-r from-[#2F6868]/[0.08] via-[#1a9a8a]/[0.05] to-[#0dd9b6]/[0.03]",
+        "shadow-sm transition-all duration-300 hover:border-[#2F6868]/40 hover:shadow-md",
+        !error && !downloaded && "animate-breathe"
       )}
     >
       {/* 左侧：图标 + 信息 */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2F6868]/10 text-[#2F6868] transition-colors group-hover:bg-[#2F6868]/15">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2F6868]/15 to-[#0dd9b6]/10 text-[#2F6868] transition-all group-hover:from-[#2F6868]/20 group-hover:to-[#0dd9b6]/15 group-hover:shadow-sm">
           <FileSpreadsheet size={20} />
         </div>
         <div className="min-w-0">
@@ -123,7 +124,7 @@ export function TestCaseExportBar({ rawResult }: TestCaseExportBarProps) {
             variant="outline"
             size="sm"
             onClick={() => setError(null)}
-            className="gap-1.5 border-destructive bg-red-50 text-destructive"
+            className="gap-1.5 border-destructive/50 bg-red-50/80 text-destructive backdrop-blur-sm"
           >
             <AlertCircle size={16} />
             <span>重试</span>
@@ -136,11 +137,13 @@ export function TestCaseExportBar({ rawResult }: TestCaseExportBarProps) {
             onClick={handleDownload}
             disabled={downloading}
             className={cn(
-              "gap-1.5 border-[#2F6868] bg-white font-medium text-[#2F6868]",
-              "transition-all duration-200 hover:bg-[#2F6868] hover:text-white",
+              "gap-1.5 border-0 font-medium transition-all duration-300",
+              "bg-gradient-to-r from-[#2F6868] to-[#1a9a8a] text-white shadow-sm",
+              "hover:shadow-md hover:brightness-110 hover:scale-[1.02]",
               "active:scale-[0.97] disabled:opacity-60",
+              downloading && "animate-download-pulse",
               downloaded &&
-                "border-green-600 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 hover:border-green-600"
+                "!from-emerald-500 !to-emerald-600 !shadow-emerald-500/25"
             )}
           >
             {downloaded ? (

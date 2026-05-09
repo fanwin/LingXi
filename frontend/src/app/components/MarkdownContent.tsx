@@ -1,5 +1,5 @@
 "use client";
-// @ts-expect-error  MC80OmFIVnBZMlhvaklQb3RvVTZRa05MWnc9PToxNjBlMDcxZA==
+// NOTE  MC80OmFIVnBZMlhvaklQb3RvVTZRa05MWnc9PToxNjBlMDcxZA==
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -479,7 +479,7 @@ const markdownComponents = {
     );
   },
 };
-// @ts-expect-error  Mi80OmFIVnBZMlhvaklQb3RvVTZRa05MWnc9PToxNjBlMDcxZA==
+// NOTE  Mi80OmFIVnBZMlhvaklQb3RvVTZRa05MWnc9PToxNjBlMDcxZA==
 
 export const MarkdownContent = React.memo<MarkdownContentProps>(
   ({ content, className = "", streaming = false }) => {

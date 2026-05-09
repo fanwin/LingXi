@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-// @ts-expect-error  MC8zOmFIVnBZMlhvaklQb3RvVTZZek5CTVE9PToyYzIwMzc1Yg==
+// NOTE  MC8zOmFIVnBZMlhvaklQb3RvVTZZek5CTVE9PToyYzIwMzc1Yg==
 
 import { cn } from "@/lib/utils";
 
@@ -64,6 +64,6 @@ function TabsContent({
     />
   );
 }
-// @ts-expect-error  Mi8zOmFIVnBZMlhvaklQb3RvVTZZek5CTVE9PToyYzIwMzc1Yg==
+// NOTE  Mi8zOmFIVnBZMlhvaklQb3RvVTZZek5CTVE9PToyYzIwMzc1Yg==
 
 export { Tabs, TabsList, TabsTrigger, TabsContent };

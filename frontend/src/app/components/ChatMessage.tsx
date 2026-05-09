@@ -189,7 +189,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
 
     return (
       <div
-        className={cn("flex w-full max-w-full overflow-x-hidden", isUser && "flex-row-reverse")}
+        className={cn("flex w-full max-w-full overflow-x-hidden animate-message-in", isUser && "flex-row-reverse")}
         style={{ contentVisibility: "auto", containIntrinsicSize: "200px" }}
       >
         <div className={cn("min-w-0 max-w-full", isUser ? "max-w-[70%]" : "w-full")}>
@@ -205,7 +205,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                       key={`img-${idx}`}
                       src={block.image_url.url}
                       alt={`uploaded image ${idx + 1}`}
-                      className="h-16 w-16 rounded-md object-cover"
+                      className="h-16 w-16 rounded-lg object-cover ring-1 ring-border/50 shadow-sm transition-transform hover:scale-105"
                     />
                   ))}
                   {/* PDFs: rendered via MultimodalPreview */}
@@ -216,8 +216,8 @@ export const ChatMessage = React.memo<ChatMessageProps>(
               )}
               {hasContent && (
                 <div
-                  className="overflow-hidden break-words rounded-xl rounded-br-none border border-border px-3 py-2 text-sm font-normal leading-[150%] text-foreground"
-                  style={{ backgroundColor: "var(--color-user-message-bg)" }}
+                  className="overflow-hidden break-words rounded-2xl rounded-br-sm border border-[#2F6868]/15 px-4 py-3 text-sm font-normal leading-[150%] text-foreground shadow-sm transition-shadow hover:shadow-md"
+                  style={{ background: "var(--gradient-user-bubble)" }}
                 >
                   <p className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed">
                     {messageContent}
@@ -266,14 +266,14 @@ export const ChatMessage = React.memo<ChatMessageProps>(
             /* ── AI message ── */
             hasContent && (
               <div className="group relative">
-                <div className="mt-4 overflow-hidden break-words text-sm font-normal leading-[150%] text-primary">
+                <div className="mt-4 overflow-hidden rounded-2xl px-4 py-3 text-sm font-normal leading-[150%] text-primary" style={{ background: "var(--gradient-ai-glow)" }}>
                   <MarkdownContent
                     content={messageContent}
                     streaming={isStreamingMessage}
                   />
                   {/* 测试用例导出下载栏：工具完成后才展示 */}
                   {exportToolCall && (
-                    <TestCaseExportBar rawResult={exportToolCall.result} />
+                    <TestCaseExportBar rawResult={exportToolCall.result!} />
                   )}
                 </div>
                 {!isStreamingMessage && (

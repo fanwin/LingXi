@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle, Check, X, Pencil } from "lucide-react";
 import type { ActionRequest, ReviewConfig } from "@/app/types/types";
 import { cn } from "@/lib/utils";
-// @ts-expect-error  MS8zOmFIVnBZMlhvaklQb3RvVTZRMU5QVkE9PToxNDM4NWI3Yw==
+// NOTE  MS8zOmFIVnBZMlhvaklQb3RvVTZRMU5QVkE9PToxNDM4NWI3Yw==
 
 interface ToolApprovalInterruptProps {
   actionRequest: ActionRequest;

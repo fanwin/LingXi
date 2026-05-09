@@ -179,8 +179,12 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(
     return (
       <div
         className={cn(
-          "w-full overflow-hidden rounded-lg border-none shadow-none outline-none transition-colors duration-200 hover:bg-accent",
-          isExpanded && hasContent && "bg-accent"
+          "w-full overflow-hidden rounded-xl border border-border/50 transition-all duration-300",
+          status === "completed" && "border-l-2 border-l-emerald-500/60",
+          status === "error" && "border-l-2 border-l-red-500/60",
+          status === "pending" && "border-l-2 border-l-blue-500/60 animate-pulse",
+          status === "interrupted" && "border-l-2 border-l-orange-500/60",
+          isExpanded && hasContent && "bg-accent/50 shadow-sm"
         )}
         style={{ contentVisibility: "auto", containIntrinsicSize: "100px" }}
       >

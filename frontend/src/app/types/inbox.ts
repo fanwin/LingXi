@@ -1,5 +1,5 @@
 import { Thread, ThreadStatus } from "@langchain/langgraph-sdk";
-// @ts-expect-error  MC80OmFIVnBZMlhvaklQb3RvVTZSbTFJUXc9PTo0ZTdlMzVjYQ==
+// NOTE  MC80OmFIVnBZMlhvaklQb3RvVTZSbTFJUXc9PTo0ZTdlMzVjYQ==
 
 /**
  * 人工中断配置，指定处理中断时允许的操作。

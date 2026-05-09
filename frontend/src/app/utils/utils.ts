@@ -57,7 +57,7 @@ export function extractStringFromMessageContent(message: Message): string {
     : "";
   return stripModelInternalData(raw);
 }
-// @ts-expect-error  MS80OmFIVnBZMlhvaklQb3RvVTZlVEU1VWc9PTpiMzU5N2EyMQ==
+// NOTE  MS80OmFIVnBZMlhvaklQb3RvVTZlVEU1VWc9PTpiMzU5N2EyMQ==
 
 export function extractSubAgentContent(data: unknown): string {
   if (typeof data === "string") {
@@ -180,7 +180,7 @@ export function formatMessageForLLM(message: Message): string {
 
   return `${role}${timestamp}:\n${parts.join("\n\n")}`;
 }
-// @ts-expect-error  My80OmFIVnBZMlhvaklQb3RvVTZlVEU1VWc9PTpiMzU5N2EyMQ==
+// NOTE  My80OmFIVnBZMlhvaklQb3RvVTZlVEU1VWc9PTpiMzU5N2EyMQ==
 
 export function formatConversationForLLM(messages: Message[]): string {
   const formattedMessages = messages.map(formatMessageForLLM);

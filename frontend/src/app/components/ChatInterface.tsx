@@ -1,5 +1,5 @@
 "use client";
-// @ts-expect-error  MC80OmFIVnBZMlhvaklQb3RvVTZXa3RPY2c9PToxZjlmNGZiOA==
+// NOTE  MC80OmFIVnBZMlhvaklQb3RvVTZXa3RPY2c9PToxZjlmNGZiOA==
 
 import React, {
   useState,
@@ -41,7 +41,7 @@ import { Label } from "@/components/ui/label";
 interface ChatInterfaceProps {
   assistant: Assistant | null;
 }
-// @ts-expect-error  MS80OmFIVnBZMlhvaklQb3RvVTZXa3RPY2c9PToxZjlmNGZiOA==
+// NOTE  MS80OmFIVnBZMlhvaklQb3RvVTZXa3RPY2c9PToxZjlmNGZiOA==
 
 const getStatusIcon = (status: TodoItem["status"], className?: string) => {
   switch (status) {
@@ -77,7 +77,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
 
   const [input, setInput] = useState("");
   const [enableRag, setEnableRag] = useState(false);
-  const { scrollRef, contentRef } = useStickToBottom();
+  const { scrollRef, contentRef, stopScroll, scrollToBottom } = useStickToBottom();
   const {
     contentBlocks,
     setContentBlocks,
@@ -315,21 +315,57 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
     );
   }, [interrupt]);
 
-  const lastMessageId = processedMessages.at(-1)?.message.id;
+  // ── 历史会话加载：骨架屏 + 防止逐轮刷新 ────────────────
+  // 终极方案：
+  //   批量加载期间 → 显示骨架屏，真实内容已渲染但 opacity:0 隐藏
+  //   稳定后      → 先 scroll 到底部，再 fade-in 显示 → 用户直接看到底部内容
+  const [isInitialRenderDone, setIsInitialRenderDone] = useState(false);
+  const [showContent, setShowContent] = useState(true);
+
+  const msgCount = processedMessages.length;
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
-    const scrollElement = scrollRef.current;
-    if (!scrollElement) return;
+    if (msgCount === 0) {
+      setIsInitialRenderDone(false);
+      setShowContent(true); // 无消息时正常显示空状态
+      return;
+    }
 
-    const frameId = window.requestAnimationFrame(() => {
-      scrollElement.scrollTo({
-        top: scrollElement.scrollHeight,
-        behavior: isLoading ? "auto" : "smooth",
-      });
-    });
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
 
-    return () => window.cancelAnimationFrame(frameId);
-  }, [lastMessageId, processedMessages.length, isLoading, scrollRef]);
+    if (!isInitialRenderDone && msgCount > 0) {
+      // 有消息涌入 → 隐藏真实内容，显示骨架屏
+      setShowContent(false);
+
+      settleTimerRef.current = setTimeout(() => {
+        setIsInitialRenderDone(true);
+
+        // 关键顺序：先跳到底部 → 再显示内容
+        requestAnimationFrame(() => {
+          scrollToBottom({ animation: "instant" });
+          // 再等一帧确保 scroll 生效后才淡入
+          requestAnimationFrame(() => {
+            setShowContent(true);
+          });
+        });
+      }, 150);
+
+      return () => {
+        if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+      };
+    }
+  }, [msgCount, isInitialRenderDone, scrollToBottom]);
+
+  // 同时冻结 useStickToBottom 在加载期间的自动滚动
+  const prevLoadingRef = useRef(isThreadLoading);
+  useEffect(() => {
+    if (isThreadLoading) {
+      stopScroll();
+      setIsInitialRenderDone(false);
+    }
+    prevLoadingRef.current = isThreadLoading;
+  }, [isThreadLoading, stopScroll]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -341,12 +377,37 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
           className="mx-auto w-full max-w-[1024px] px-6 pb-6 pt-4"
           ref={contentRef}
         >
-          {isThreadLoading ? (
+          {/* 历史消息批量加载中：骨架屏遮盖 */}
+          {!isInitialRenderDone && msgCount > 0 ? (
+            <div className="flex flex-col gap-6 py-8 animate-pulse">
+              {Array.from({ length: Math.min(msgCount, 8) }).map((_, i) => (
+                <div key={i} className={cn(
+                  "flex gap-4",
+                  i % 2 === 0 ? "justify-end" : "justify-start"
+                )}>
+                  <div className={cn(
+                    "h-24 rounded-2xl bg-muted/60",
+                    i % 2 === 0 ? "w-[70%]" : "w-full max-w-[85%]"
+                  )} />
+                </div>
+              ))}
+              <div className="text-center text-sm text-muted-foreground pt-4">
+                正在加载对话内容...
+              </div>
+            </div>
+          ) : isThreadLoading ? (
             <div className="flex items-center justify-center p-8">
               <p className="text-muted-foreground">加载中...</p>
             </div>
-          ) : (
-            <>
+          ) : null}
+          {/* 真实消息列表：已渲染但加载期间隐藏（opacity:0），scrollToBottom 后再淡入显示 */}
+          <div
+            className={cn(
+              "transition-opacity duration-200",
+              !isInitialRenderDone || !showContent ? "opacity-0 pointer-events-none absolute" : "opacity-100 relative"
+            )}
+            aria-hidden={!showContent}
+          >
               {processedMessages.map((data, index) => {
                 const messageUi = messageUiMap.get(data.message.id ?? "");
                 const isLastMessage = index === processedMessages.length - 1;
@@ -374,8 +435,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
                   />
                 );
               })}
-            </>
-          )}
+          </div>
         </div>
       </div>
 
@@ -383,9 +443,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
         <div
           ref={dropRef}
           className={cn(
-            "mx-4 mb-6 flex flex-shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-background",
-            "mx-auto w-[calc(100%-32px)] max-w-[1024px] transition-colors duration-200 ease-in-out",
-            dragOver && "border-primary border-2 border-dotted"
+            "mx-4 mb-6 flex flex-shrink-0 flex-col overflow-hidden rounded-2xl glass gradient-border",
+            "mx-auto w-[calc(100%-32px)] max-w-[1024px] transition-all duration-300 ease-in-out",
+            dragOver && "border-primary border-2 border-dotted shadow-lg"
           )}
         >
           {(hasTasks || hasFiles) && (
@@ -655,6 +715,12 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
                     (submitDisabled ||
                       (!input.trim() && contentBlocks.length === 0))
                   }
+                  className={cn(
+                    "transition-all duration-300",
+                    isLoading
+                      ? "animate-pulse"
+                      : "bg-gradient-to-r from-[#2F6868] to-[#1a9a8a] shadow-md hover:shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] border-0"
+                  )}
                 >
                   {isLoading ? (
                     <>
@@ -678,4 +744,4 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
 });
 
 ChatInterface.displayName = "ChatInterface";
-// @ts-expect-error  My80OmFIVnBZMlhvaklQb3RvVTZXa3RPY2c9PToxZjlmNGZiOA==
+// NOTE  My80OmFIVnBZMlhvaklQb3RvVTZXa3RPY2c9PToxZjlmNGZiOA==

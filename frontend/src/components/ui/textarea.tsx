@@ -1,5 +1,5 @@
 import * as React from "react";
-// @ts-expect-error  MC8yOmFIVnBZMlhvaklQb3RvVTZUalpEYnc9PToyNTRhZWI0OQ==
+// NOTE  MC8yOmFIVnBZMlhvaklQb3RvVTZUalpEYnc9PToyNTRhZWI0OQ==
 
 import { cn } from "@/lib/utils";
 

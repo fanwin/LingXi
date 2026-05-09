@@ -1,5 +1,5 @@
 "use client";
-// @ts-expect-error  MC80OmFIVnBZMlhvaklQb3RvVTZjMGhDYmc9PTo2NzhmODI5NQ==
+// NOTE  MC80OmFIVnBZMlhvaklQb3RvVTZjMGhDYmc9PTo2NzhmODI5NQ==
 
 import { useCallback, useEffect, useRef } from "react";
 import { useStream } from "@langchain/langgraph-sdk/react";
@@ -32,7 +32,7 @@ export type StateType = {
 export interface ContextType extends Record<string, unknown> {
   enable_rag?: boolean;
 }
-// @ts-expect-error  My80OmFIVnBZMlhvaklQb3RvVTZjMGhDYmc9PTo2NzhmODI5NQ==
+// NOTE  My80OmFIVnBZMlhvaklQb3RvVTZjMGhDYmc9PTo2NzhmODI5NQ==
 
 export function useChat({
   activeAssistant,

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
-// @ts-expect-error  MC8yOmFIVnBZMlhvaklQb3RvVTZkMFZWWXc9PTo1MjZkNDY4YQ==
+// NOTE  MC8yOmFIVnBZMlhvaklQb3RvVTZkMFZWWXc9PTo1MjZkNDY4YQ==
 
 import { cn } from "@/lib/utils";
 

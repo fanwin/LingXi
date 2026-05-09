@@ -71,7 +71,7 @@ export async function fileToBase64(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
-// @ts-expect-error  Mi80OmFIVnBZMlhvaklQb3RvVTZlVTFwYlE9PTo5NDYyN2YzZg==
+// NOTE  Mi80OmFIVnBZMlhvaklQb3RvVTZlVTFwYlE9PTo5NDYyN2YzZg==
 
 // Type guard for Base64ContentBlock
 export function isBase64ContentBlock(

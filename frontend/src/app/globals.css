@@ -36,6 +36,27 @@
     --color-file-button: #ffffff;
     --color-file-button-hover: #e5e7eb;
 
+    /* ===== 炫酷设计增强变量 ===== */
+    /* 渐变色 */
+    --gradient-brand: linear-gradient(135deg, #2F6868 0%, #1a9a8a 50%, #0dd9b6 100%);
+    --gradient-brand-subtle: linear-gradient(135deg, rgba(47,104,104,0.08) 0%, rgba(13,217,182,0.06) 100%);
+    --gradient-user-bubble: linear-gradient(135deg, #e8f4f8 0%, #d4eef6 50%, #e0f0f5 100%);
+    --gradient-ai-glow: linear-gradient(135deg, rgba(47,104,104,0.05) 0%, rgba(13,217,182,0.03) 100%);
+    --gradient-header-border: linear-gradient(90deg, transparent 0%, #2F6868 30%, #0dd9b6 50%, #2F6868 70%, transparent 100%);
+    --gradient-input-focus: linear-gradient(135deg, #2F6868, #0dd9b6);
+
+    /* 玻璃拟态 */
+    --glass-bg: rgba(255, 255, 255, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.4);
+    --glass-shadow: 0 8px 32px rgba(47, 104, 104, 0.08);
+    --glass-blur: 12px;
+
+    /* 光晕 */
+    --glow-brand: 0 0 20px rgba(47, 104, 104, 0.15), 0 0 60px rgba(13, 217, 182, 0.08);
+    --glow-brand-strong: 0 0 15px rgba(47, 104, 104, 0.25), 0 0 40px rgba(13, 217, 182, 0.12);
+    --glow-success: 0 0 15px rgba(16, 185, 129, 0.25), 0 0 40px rgba(16, 185, 129, 0.1);
+    --glow-error: 0 0 15px rgba(239, 68, 68, 0.2), 0 0 40px rgba(239, 68, 68, 0.08);
+
     /* Dark theme colors */
     --color-primary-dark: #2dd4bf;
     --color-user-message-dark: #076699;
@@ -52,6 +73,19 @@
     --color-text-primary-dark: #f3f4f6;
     --color-text-secondary-dark: #9ca3af;
     --color-text-tertiary-dark: #6b7280;
+    --color-file-button-dark: #2a2a2a;
+    --color-file-button-hover-dark: #353535;
+
+    /* Dark mode 增强变量 */
+    --gradient-brand-dark: linear-gradient(135deg, #0dd9b6 0%, #2dd4bf 50%, #5eead4 100%);
+    --gradient-brand-subtle-dark: linear-gradient(135deg, rgba(13,217,182,0.12) 0%, rgba(94,234,212,0.06) 100%);
+    --gradient-user-bubble-dark: linear-gradient(135deg, #2d2d2d 0%, #333 50%, #2a2a2a 100%);
+    --gradient-ai-glow-dark: linear-gradient(135deg, rgba(13,217,182,0.08) 0%, rgba(94,234,212,0.04) 100%);
+    --gradient-header-border-dark: linear-gradient(90deg, transparent 0%, #0dd9b6 30%, #5eead4 50%, #0dd9b6 70%, transparent 100%);
+    --glass-bg-dark: rgba(26, 26, 26, 0.72);
+    --glass-border-dark: rgba(64, 64, 64, 0.4);
+    --glass-shadow-dark: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --glow-brand-dark: 0 0 20px rgba(13, 217, 182, 0.2), 0 0 60px rgba(94, 234, 212, 0.1);
 
     /* Spacing variables */
     --spacing-xs: 0.25rem;
@@ -332,24 +366,218 @@ button {
   border-width: 0;
 }
 
-/* Optimization Window animations */
+/* ============================================================
+   炫酷动效系统
+   ============================================================ */
+
+/* --- 基础动画 --- */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideIn {
+  from { opacity: 0; transform: scale(0.9) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 消息气泡进入动画 */
+@keyframes messageSlideUp {
   from {
     opacity: 0;
-    transform: scale(0.9) translateY(20px);
+    transform: translateY(16px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 品牌脉冲光效 */
+@keyframes brandPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* 渐变边框旋转动画 */
+@keyframes gradientRotate {
+  0% { --gradient-angle: 0deg; }
+  100% { --gradient-angle: 360deg; }
+}
+
+/* 闪光扫过效果 */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* 呼吸光晕 */
+@keyframes breatheGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(47, 104, 104, 0.1), 0 0 40px rgba(13, 217, 182, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(47, 104, 104, 0.2), 0 0 60px rgba(13, 217, 182, 0.1);
+  }
+}
+
+/* AI 打字光标闪烁 */
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* 工具调用展开动画 */
+@keyframes expandDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    transform: translateY(0);
+  }
+}
+
+/* 下载按钮脉冲 */
+@keyframes downloadPulse {
+  0% { box-shadow: 0 0 0 0 rgba(47, 104, 104, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(47, 104, 104, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(47, 104, 104, 0); }
+}
+
+/* --- 玻璃拟态工具类 --- */
+@layer utilities {
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .glass {
+      background: var(--glass-bg-dark);
+      border-color: var(--glass-border-dark);
+      box-shadow: var(--glass-shadow-dark);
+    }
+  }
+
+  /* 渐变文字 */
+  .text-gradient-brand {
+    background: var(--gradient-brand);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .text-gradient-brand {
+      background: var(--gradient-brand-dark);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+  }
+
+  /* 渐变边框容器 */
+  .gradient-border {
+    position: relative;
+    background-clip: padding-box;
+  }
+
+  .gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: var(--gradient-brand);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 300ms ease;
+  }
+
+  .gradient-border:focus-within::before,
+  .gradient-border:hover::before {
+    opacity: 1;
+  }
+
+  /* 消息气泡动画 */
+  .animate-message-in {
+    animation: messageSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* 呼吸光晕动画 */
+  .animate-breathe {
+    animation: breatheGlow 3s ease-in-out infinite;
+  }
+
+  /* 下载脉冲 */
+  .animate-download-pulse {
+    animation: downloadPulse 2s ease-out infinite;
+  }
+
+  /* 闪光扫过效果 */
+  .shimmer-effect {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer-effect::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.15) 50%,
+      transparent 100%
+    );
+    animation: shimmer 3s ease-in-out infinite;
+  }
+
+  /* 打字光标 */
+  .typing-cursor::after {
+    content: "▋";
+    animation: cursorBlink 1s step-end infinite;
+    color: #2F6868;
+    margin-left: 2px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .typing-cursor::after {
+      color: #2dd4bf;
+    }
+  }
+
+  /* 工具调用卡片展开 */
+  .animate-expand-down {
+    animation: expandDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Header 底部渐变线 */
+  .header-gradient-line::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--gradient-header-border);
+    opacity: 0.6;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .header-gradient-line::after {
+      background: var(--gradient-header-border-dark);
+    }
   }
 }
 

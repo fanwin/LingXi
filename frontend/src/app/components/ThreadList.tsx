@@ -9,7 +9,7 @@ import {
   useCallback,
 } from "react";
 import { format } from "date-fns";
-import { Loader2, MessageSquare, X, Trash2 } from "lucide-react";
+import { Loader2, MessageSquare, MoreVertical, Pin, Pencil, Search } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,11 +28,28 @@ import { cn } from "@/lib/utils";
 import type { ThreadItem } from "@/app/hooks/useThreads";
 import { useThreads } from "@/app/hooks/useThreads";
 import { useClient } from "@/providers/ClientProvider";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type StatusFilter = "all" | "idle" | "busy" | "interrupted" | "error";
 // NOTE  MC80OmFIVnBZMlhvaklQb3RvVTZZVUU1U1E9PTo2MjE4MTQyOQ==
 
 const GROUP_LABELS = {
+  pinned: "置顶",
   interrupted: "需要关注",
   today: "今天",
   yesterday: "昨天",
@@ -137,7 +154,12 @@ export function ThreadList({
 }: ThreadListProps) {
   const [currentThreadId, setCurrentThreadId] = useQueryState("threadId");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameThreadId, setRenameThreadId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const client = useClient();
 
   const threads = useThreads({
@@ -149,15 +171,27 @@ export function ThreadList({
     return threads.data?.flat() ?? [];
   }, [threads.data]);
 
+  // 搜索过滤：对标题和描述进行关键字匹配
+  const filteredThreads = useMemo(() => {
+    if (!searchQuery.trim()) return flattened;
+    const q = searchQuery.trim().toLowerCase();
+    return flattened.filter((t) => {
+      const title = (t.customTitle || t.title).toLowerCase();
+      const desc = t.description.toLowerCase();
+      return title.includes(q) || desc.includes(q);
+    });
+  }, [flattened, searchQuery]);
+
   const isLoadingMore =
     threads.size > 0 && threads.data?.[threads.size - 1] == null;
   const isEmpty = threads.data?.at(0)?.length === 0;
   const isReachingEnd = isEmpty || (threads.data?.at(-1)?.length ?? 0) < 20;
 
-  // Group threads by time and status
+  // Group threads: pinned first, then by time and status
   const grouped = useMemo(() => {
     const now = new Date();
     const groups: Record<keyof typeof GROUP_LABELS, ThreadItem[]> = {
+      pinned: [],
       interrupted: [],
       today: [],
       yesterday: [],
@@ -165,7 +199,12 @@ export function ThreadList({
       older: [],
     };
 
-    flattened.forEach((thread) => {
+    filteredThreads.forEach((thread) => {
+      if (thread.pinned) {
+        groups.pinned.push(thread);
+        return;
+      }
+
       if (thread.status === "interrupted") {
         groups.interrupted.push(thread);
         return;
@@ -186,7 +225,7 @@ export function ThreadList({
     });
 
     return groups;
-  }, [flattened]);
+  }, [filteredThreads]);
 
   const interruptedCount = useMemo(() => {
     return flattened.filter((t) => t.status === "interrupted").length;
@@ -240,32 +279,51 @@ export function ThreadList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDeleteThread = useCallback(
-    async (threadId: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-
-      if (!confirm("确定要删除这条对话吗？此操作无法撤销。")) {
-        return;
-      }
-
-      setDeletingThreadId(threadId);
+  const handleTogglePin = useCallback(
+    async (thread: ThreadItem) => {
       try {
-        await client.threads.delete(threadId);
-
-        if (currentThreadId === threadId) {
-          setCurrentThreadId(null);
-        }
-
+        await client.threads.update(thread.id, {
+          metadata: {
+            pinned: !thread.pinned,
+          },
+        });
         mutateFn();
       } catch (error) {
-        console.error("Failed to delete thread:", error);
-        alert("删除失败，请重试。");
-      } finally {
-        setDeletingThreadId(null);
+        console.error("Failed to toggle pin:", error);
+        alert("置顶操作失败，请重试。");
       }
     },
-    [client, currentThreadId, setCurrentThreadId, threads]
+    [client]
   );
+
+  const handleOpenRename = useCallback((thread: ThreadItem) => {
+    setRenameThreadId(thread.id);
+    setRenameValue(thread.customTitle || thread.title);
+    setRenameDialogOpen(true);
+  }, []);
+
+  const handleRenameSubmit = useCallback(async () => {
+    if (!renameThreadId || !renameValue.trim()) {
+      setRenameDialogOpen(false);
+      return;
+    }
+
+    try {
+      await client.threads.update(renameThreadId, {
+        metadata: {
+          customTitle: renameValue.trim(),
+        },
+      });
+      mutateFn();
+    } catch (error) {
+      console.error("Failed to rename thread:", error);
+      alert("重命名失败，请重试。");
+    } finally {
+      setRenameDialogOpen(false);
+      setRenameThreadId(null);
+      setRenameValue("");
+    }
+  }, [client, renameThreadId, renameValue]);
 
   // Notify parent of interrupt count changes
   useEffect(() => {
@@ -274,66 +332,85 @@ export function ThreadList({
 
   return (
     <div className="absolute inset-0 flex flex-col">
-      {/* Header with title, filter, and close button */}
-      <div className="grid flex-shrink-0 grid-cols-[1fr_auto] items-center gap-3 border-b border-border p-4">
-        <h2 className="text-lg font-semibold tracking-tight">对话列表</h2>
-        <div className="flex items-center gap-2">
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-          >
-            <SelectTrigger className="w-fit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="all">所有状态</SelectItem>
-              <SelectSeparator />
-              <SelectGroup>
-                <SelectLabel>活跃</SelectLabel>
-                <SelectItem value="idle">
-                  <StatusFilterItem
-                    status="idle"
-                    label="空闲"
-                  />
-                </SelectItem>
-                <SelectItem value="busy">
-                  <StatusFilterItem
-                    status="busy"
-                    label="忙碌"
-                  />
-                </SelectItem>
-              </SelectGroup>
-              <SelectSeparator />
-              <SelectGroup>
-                <SelectLabel>需要关注</SelectLabel>
-                <SelectItem value="interrupted">
-                  <StatusFilterItem
-                    status="interrupted"
-                    label="已中断"
-                    badge={interruptedCount}
-                  />
-                </SelectItem>
-                <SelectItem value="error">
-                  <StatusFilterItem
-                    status="error"
-                    label="错误"
-                  />
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          {onClose && (
+      {/* Header with title, filter, and search */}
+      <div className="flex flex-shrink-0 flex-col gap-3 border-b border-border p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold tracking-tight">对话列表</h2>
+          <div className="flex items-center gap-2">
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+            >
+              <SelectTrigger className="w-fit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="all">所有状态</SelectItem>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel>活跃</SelectLabel>
+                  <SelectItem value="idle">
+                    <StatusFilterItem
+                      status="idle"
+                      label="空闲"
+                    />
+                  </SelectItem>
+                  <SelectItem value="busy">
+                    <StatusFilterItem
+                      status="busy"
+                      label="忙碌"
+                    />
+                  </SelectItem>
+                </SelectGroup>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel>需要关注</SelectLabel>
+                  <SelectItem value="interrupted">
+                    <StatusFilterItem
+                      status="interrupted"
+                      label="已中断"
+                      badge={interruptedCount}
+                    />
+                  </SelectItem>
+                  <SelectItem value="error">
+                    <StatusFilterItem
+                      status="error"
+                      label="错误"
+                    />
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             <Button
               variant="ghost"
               size="icon"
-              onClick={onClose}
-              className="h-8 w-8"
-              aria-label="关闭对话列表侧边栏"
+              onClick={() => {
+                setIsSearchOpen((prev) => !prev);
+                if (!isSearchOpen) {
+                  setTimeout(() => searchInputRef.current?.focus(), 100);
+                } else {
+                  setSearchQuery("");
+                }
+              }}
+              className={cn("h-8 w-8", isSearchOpen && "bg-accent text-accent-foreground")}
+              aria-label={isSearchOpen ? "关闭搜索" : "搜索对话"}
             >
-              <X className="h-4 w-4" />
+              <Search className="h-4 w-4" />
             </Button>
-          )}
+          </div>
         </div>
+        {/* 搜索输入框 */}
+        {isSearchOpen && (
+          <div className="animate-message-in">
+            <Input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索对话标题或内容..."
+              className="h-9 text-sm"
+            />
+          </div>
+        )}
       </div>
 
       <ScrollArea className="h-0 flex-1">
@@ -345,8 +422,18 @@ export function ThreadList({
 
         {!threads.error && !threads.isLoading && isEmpty && <EmptyState />}
 
-        {!threads.error && !isEmpty && (
-          <div className="box-border w-full max-w-full overflow-hidden p-2">
+        {/* 搜索无结果 */}
+        {!threads.error && !isEmpty && searchQuery.trim() && filteredThreads.length === 0 && (
+          <div className="flex flex-col items-center justify-center p-8 text-center">
+            <Search className="mb-2 h-10 w-10 text-gray-300" />
+            <p className="text-sm text-muted-foreground">
+              未找到包含「{searchQuery.trim()}」的对话
+            </p>
+          </div>
+        )}
+
+        {!threads.error && !isEmpty && filteredThreads.length > 0 && (
+          <div className="box-border w-full max-w-full overflow-hidden">
             {(
               Object.keys(GROUP_LABELS) as Array<keyof typeof GROUP_LABELS>
             ).map((group) => {
@@ -358,7 +445,7 @@ export function ThreadList({
                   key={group}
                   className="mb-4"
                 >
-                  <h4 className="m-0 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <h4 className="m-0 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {GROUP_LABELS[group]}
                   </h4>
                   <div className="flex flex-col gap-1">
@@ -367,29 +454,11 @@ export function ThreadList({
                         key={thread.id}
                         className="group relative"
                       >
-                        {/* Delete button - positioned at description line, outside the text */}
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteThread(thread.id, e)}
-                          disabled={deletingThreadId === thread.id}
-                          className={cn(
-                            "absolute left-0 bottom-3 z-10 flex-shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive hover:text-destructive-foreground group-hover:opacity-100",
-                            deletingThreadId === thread.id && "opacity-100"
-                          )}
-                          title="删除对话"
-                        >
-                          {deletingThreadId === thread.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-
                         <button
                           type="button"
                           onClick={() => onThreadSelect(thread.id)}
                           className={cn(
-                            "grid w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors duration-200",
+                            "grid w-full cursor-pointer items-center gap-3 rounded-lg px-4 py-3 pr-8 text-left transition-colors duration-200",
                             "hover:bg-accent",
                             currentThreadId === thread.id
                               ? "border border-primary bg-accent hover:bg-accent"
@@ -399,30 +468,53 @@ export function ThreadList({
                         >
                           <div className="min-w-0 flex-1">
                             {/* Title + Timestamp Row */}
-                            <div className="mb-1 flex items-center justify-between">
+                            <div className="flex items-center justify-between">
                               <h3 className="truncate text-sm font-semibold">
-                                {thread.title}
+                                {thread.customTitle || thread.title}
                               </h3>
                               <span className="ml-2 flex-shrink-0 text-xs text-muted-foreground">
                                 {formatTime(thread.updatedAt)}
                               </span>
                             </div>
-                            {/* Description + Status Row */}
-                            <div className="flex items-center justify-between">
-                              <p className="flex-1 truncate text-sm text-muted-foreground">
-                                {thread.description}
-                              </p>
-                              <div className="ml-2 flex-shrink-0">
-                                <div
-                                  className={cn(
-                                    "h-2 w-2 rounded-full",
-                                    getThreadColor(thread.status)
-                                  )}
-                                />
-                              </div>
-                            </div>
                           </div>
                         </button>
+
+                        {/* More actions dropdown */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className={cn(
+                                "absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-accent-foreground group-hover:opacity-100",
+                                "data-[state=open]:opacity-100"
+                              )}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label="更多操作"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" side="right">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenRename(thread);
+                              }}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              重命名
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTogglePin(thread);
+                              }}
+                            >
+                              <Pin className="mr-2 h-4 w-4" />
+                              {thread.pinned ? "取消置顶" : "置顶"}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     ))}
                   </div>
@@ -452,6 +544,44 @@ export function ThreadList({
           </div>
         )}
       </ScrollArea>
+
+      {/* Rename Dialog */}
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>重命名对话</DialogTitle>
+            <DialogDescription>
+              输入新的对话标题，方便您快速识别。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="thread-name">对话标题</Label>
+              <Input
+                id="thread-name"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                placeholder="请输入对话标题"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleRenameSubmit();
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRenameDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button onClick={handleRenameSubmit}>确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
