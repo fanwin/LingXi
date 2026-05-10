@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -11,9 +11,11 @@ import {
   FileCode,
   FolderArchive,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import JSZip from "jszip";
 
 // ── 类型定义 ───────────────────────────────────────────
 
@@ -21,6 +23,13 @@ interface CodeFileMeta {
   filename: string;
   language: string;
   size_bytes: number;
+}
+
+interface CodeFileWithContent extends CodeFileMeta {
+  /** 解压后的文件内容（懒加载） */
+  content?: string;
+  /** 是否正在加载中 */
+  loading?: boolean;
 }
 
 interface ParsedResult {
@@ -32,13 +41,11 @@ interface ParsedResult {
 }
 
 export interface CodeExportPanelProps {
-  /** export_code_to_zip 工具返回的 JSON 字符串 */
   rawResult: string;
-  /** 可选：移除面板的回调 */
   onRemove?: () => void;
 }
 
-// ── 语言颜色映射（用于语法高亮标识） ─────────────────────
+// ── 语言颜色映射 ─────────────────────────────────────
 
 const LANGUAGE_COLORS: Record<string, string> = {
   python: "text-blue-400",
@@ -77,17 +84,38 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// ── 单个代码文件项（可展开预览） ───────────────────────
+/**
+ * 从 base64 字符串解码为 Uint8Array。
+ */
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return bytes;
+}
+
+// ── 单个代码文件项（可展开预览） ─────────────────────
 
 function CodeFileItem({
   file,
-  index,
+  onFetchContent,
 }: {
-  file: CodeFileMeta & { content?: string };
-  index: number;
+  file: CodeFileWithContent;
+  onFetchContent: (filename: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const handleExpand = useCallback(() => {
+    const next = !expanded;
+    setExpanded(next);
+    // 首次展开且无内容时，触发懒加载解压
+    if (next && file.content === undefined && !file.loading) {
+      onFetchContent(file.filename);
+    }
+  }, [expanded, file.content, file.loading, file.filename, onFetchContent]);
 
   const handleCopy = useCallback(
     (e: React.MouseEvent) => {
@@ -111,7 +139,7 @@ function CodeFileItem({
       {/* 文件头部 */}
       <button
         type="button"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={handleExpand}
         className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
       >
         <ChevronRight
@@ -149,6 +177,7 @@ function CodeFileItem({
               size="sm"
               className="h-7 gap-1.5 text-xs"
               onClick={handleCopy}
+              disabled={!file.content}
             >
               {copied ? (
                 <>
@@ -164,16 +193,19 @@ function CodeFileItem({
             </Button>
           </div>
 
-          {/* 代码内容（仅当有 content 时显示） */}
-          {file.content && (
-            <pre className="max-h-[360px] overflow-auto rounded-b-lg bg-[#1e1e2e] p-4 text-xs leading-relaxed text-gray-300 scrollbar-thin scrollbar-thumb-border">
+          {/* 内容区域：加载中 / 代码预览 / 空状态 */}
+          {file.loading ? (
+            <div className="flex items-center justify-center gap-2 py-8">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">正在读取文件...</span>
+            </div>
+          ) : file.content ? (
+            <pre className="max-h-[420px] overflow-auto rounded-b-lg bg-[#1e1e2e] p-4 text-xs leading-relaxed text-gray-300 scrollbar-thin scrollbar-thumb-border">
               <code>{file.content}</code>
             </pre>
-          )}
-
-          {!file.content && (
+          ) : (
             <div className="py-6 text-center text-xs text-muted-foreground">
-              文件内容可在下载 ZIP 后查看完整源码
+              文件内容不可读（可能是二进制文件）
             </div>
           )}
         </div>
@@ -182,19 +214,8 @@ function CodeFileItem({
   );
 }
 
-// ── 主组件：代码导出面板 ─────────────────────────────────
+// ── 主组件 ────────────────────────────────────────────
 
-/**
- * CodeExportPanel - 会话中生成代码的可折叠导出面板
- *
- * 当 AI 调用 export_code_to_zip 工具完成后展示。
- * 功能：
- *   - 折叠/展开切换
- *   - 文件列表 + 每文件语言标签 + 大小
- *   - 点击文件可展开预览代码内容
- *   - 一键下载 ZIP 压缩包
- *   - 复制单文件代码到剪贴板
- */
 export function CodeExportPanel({ rawResult, onRemove }: CodeExportPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -215,6 +236,62 @@ export function CodeExportPanel({ rawResult, onRemove }: CodeExportPanelProps) {
 
   const { filename, base64_data, file_list, file_count } = parsed;
 
+  // ── 前端 ZIP 解压：为每个文件懒加载内容 ─────────
+  const [filesWithContent, setFilesWithContent] = useState<CodeFileWithContent[]>(
+    () => (file_list ?? []).map((f) => ({ ...f }))
+  );
+  const [zipCache, setZipCache] = useState<JSZip | null>(null);
+
+  // 首次挂载时异步加载 ZIP（不阻塞渲染）
+  useEffect(() => {
+    let cancelled = false;
+    async function loadZip() {
+      try {
+        const bytes = base64ToUint8Array(base64_data);
+        const zip = await JSZip.loadAsync(bytes);
+        if (!cancelled) setZipCache(zip);
+      } catch (e) {
+        console.warn("[CodeExportPanel] ZIP 预加载失败:", e);
+      }
+    }
+    loadZip();
+    return () => { cancelled = true; };
+  }, [base64_data]);
+
+  // 按文件名懒加载单个文件内容
+  const handleFetchContent = useCallback(
+    async (targetFilename: string) => {
+      if (!zipCache) return;
+
+      // 标记加载中
+      setFilesWithContent((prev) =>
+        prev.map((f) =>
+          f.filename === targetFilename ? { ...f, loading: true } : f
+        )
+      );
+
+      try {
+        const file = zipCache.file(targetFilename);
+        if (!file) throw new Error("ZIP 中未找到该文件");
+
+        const content = await file.async("string");
+        setFilesWithContent((prev) =>
+          prev.map((f) =>
+            f.filename === targetFilename ? { ...f, content, loading: false } : f
+          )
+        );
+      } catch (e) {
+        console.error(`[CodeExportPanel] 读取 ${targetFilename} 失败:`, e);
+        setFilesWithContent((prev) =>
+          prev.map((f) =>
+            f.filename === targetFilename ? { ...f, loading: false, content: "" } : f
+          )
+        );
+      }
+    },
+    [zipCache]
+  );
+
   // 下载处理
   const handleDownload = useCallback(async () => {
     if (downloading) return;
@@ -222,16 +299,8 @@ export function CodeExportPanel({ rawResult, onRemove }: CodeExportPanelProps) {
     setError(null);
 
     try {
-      const binaryStr = atob(base64_data);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i);
-      }
-
-      const blob = new Blob([bytes], {
-        type: "application/zip",
-      });
-
+      const bytes = base64ToUint8Array(base64_data);
+      const blob = new Blob([bytes], { type: "application/zip" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -252,61 +321,53 @@ export function CodeExportPanel({ rawResult, onRemove }: CodeExportPanelProps) {
     }
   }, [downloading, base64_data, filename]);
 
+  const totalFiles = file_count ?? filesWithContent.length ?? 0;
+
   return (
     <div
       className={cn(
         "group mt-3 overflow-hidden rounded-xl border transition-all duration-300",
         "border-[#2F6868]/20 bg-gradient-to-r from-[#2F6868]/[0.06] via-[#1a9a8a]/[0.03] to-transparent",
-        isExpanded
-          ? "shadow-sm hover:border-[#2F6868]/35"
-          : "hover:border-[#2F6868]/25"
+        isExpanded ? "shadow-sm hover:border-[#2F6868]/35" : "hover:border-[#2F6868]/25"
       )}
     >
-      {/* 标题栏：始终可见，点击折叠/展开 */}
+      {/* 标题栏 */}
       <div
         role="button"
         tabIndex={0}
         onClick={() => setIsExpanded((v) => !v)}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsExpanded((v) => !v); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") setIsExpanded((v) => !v);
+        }}
         className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left select-none"
       >
-        {/* 展开/收起箭头 */}
         <ChevronDown
           className={cn(
             "h-4 w-4 shrink-0 text-[#2F6868] transition-transform duration-200",
             !isExpanded && "-rotate-90"
           )}
         />
-
-        {/* 图标 */}
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#2F6868]/15 to-[#0dd9b6]/10 text-[#2F6868] transition-all group-hover:from-[#2F6868]/25 group-hover:to-[#0dd9b6]/15">
           <FolderArchive size={18} />
         </div>
-
-        {/* 信息 */}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">
             代码已打包
             <span className="ml-2 font-normal text-muted-foreground">
-              ({file_count ?? file_list?.length ?? 0} 个文件)
+              ({totalFiles} 个文件)
             </span>
           </p>
           <p className="mt-0.5 truncate text-xs font-mono text-muted-foreground">
             {filename}
           </p>
         </div>
-
-        {/* 右侧操作按钮组 */}
         <div className="flex items-center gap-1.5">
           {onRemove && (
             <Button
               variant="ghost"
               size="icon"
               className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
+              onClick={(e) => { e.stopPropagation(); onRemove(); }}
               aria-label="移除面板"
             >
               <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
@@ -318,10 +379,7 @@ export function CodeExportPanel({ rawResult, onRemove }: CodeExportPanelProps) {
               variant="ghost"
               size="sm"
               className="gap-1.5 h-7 text-xs text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                setError(null);
-              }}
+              onClick={(e) => { e.stopPropagation(); setError(null); }}
             >
               重试
             </Button>
@@ -336,23 +394,14 @@ export function CodeExportPanel({ rawResult, onRemove }: CodeExportPanelProps) {
                   ? "!text-emerald-600"
                   : "bg-gradient-to-r from-[#2F6868] to-[#1a9a8a] text-white border-0 shadow-sm hover:shadow-md hover:brightness-110 active:scale-[0.97]"
               )}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDownload();
-              }}
+              onClick={(e) => { e.stopPropagation(); handleDownload(); }}
             >
               {downloaded ? (
-                <>
-                  <Check className="h-3.5 w-3.5" />
-                  已下载
-                </>
+                <><Check className="h-3.5 w-3.5" /> 已下载</>
               ) : downloading ? (
                 "下载中..."
               ) : (
-                <>
-                  <Download className="h-3.5 w-3.5" />
-                  下载 ZIP
-                </>
+                <><Download className="h-3.5 w-3.5" /> 下载 ZIP</>
               )}
             </Button>
           )}
@@ -366,19 +415,20 @@ export function CodeExportPanel({ rawResult, onRemove }: CodeExportPanelProps) {
           <div className="mb-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
             <Code className="h-3.5 w-3.5" />
             <span>文件列表</span>
-            <span className="ml-auto tabular-nums">
-              共 {file_count ?? file_list?.length ?? 0} 个文件
-            </span>
+            <span className="ml-auto tabular-nums">共 {totalFiles} 个</span>
           </div>
 
-          {/* 文件列表 */}
+          {/* 文件列表（可滚动） */}
           <div className="flex flex-col gap-1.5 max-h-[480px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-border">
-            {file_list?.map((file, idx) => (
-              <CodeFileItem key={`${file.filename}-${idx}`} file={file} index={idx} />
+            {filesWithContent.map((file, idx) => (
+              <CodeFileItem
+                key={`${file.filename}-${idx}`}
+                file={file}
+                onFetchContent={handleFetchContent}
+              />
             ))}
           </div>
 
-          {/* 错误提示 */}
           {error && (
             <p className="mt-2 text-center text-xs text-destructive">{error}</p>
           )}
